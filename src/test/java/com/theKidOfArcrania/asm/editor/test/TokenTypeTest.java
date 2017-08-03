@@ -36,10 +36,11 @@ public class TokenTypeTest
             mthContext = classContext.findMethod("TestMethod", TypeSignature.parseTypeSig("()V"));
     }
 
-    @Parameterized.Parameters
+    @Parameterized.Parameters(name="{0}")
     public static Object[][] params()
     {
-        String[] tokens = "1234 5678L 9012.23F 324.643D 324.4 \"Text_\\nhere\" Identifier @(BB)V &h4ndle$".split(" ");
+        String[] tokens = {"1234", "5678L", "9012.23F", "324.643D", "324.4", "  \"Text_\\nhere\"", "Identifier",
+                "@(BB)" + "V", "&h4ndle$"};
         TokenType[] types = {INTEGER, LONG, FLOAT, DOUBLE, DOUBLE, STRING, IDENTIFIER, TYPE_SIGNATURE, HANDLE};
         Object[] vals = {1234, 5678L, 9012.23F, 324.643, 324.4, "Text_\nhere", "Identifier", "(BB)V", "h4ndle$"};
 
@@ -47,6 +48,27 @@ public class TokenTypeTest
         for (int i = 0; i < params.length; i++)
             params[i] = new Object[] {tokens[i], types[i], vals[i]};
         return params;
+    }
+
+    public static CodeTokenReader initReader(CodeSymbols globalSymbols, String token)
+    {
+        CodeTokenReader reader = new CodeTokenReader(globalSymbols, mthContext, token);
+        reader.nextLine();
+        reader.addErrorLogger(new ErrorLogger()
+        {
+            @Override
+            public void logError(String description, Range highlight)
+            {
+                fail(description);
+            }
+
+            @Override
+            public void logWarning(String description, Range highlight)
+            {
+                fail(description);
+            }
+        });
+        return reader;
     }
 
     private CodeTokenReader reader;
@@ -65,22 +87,7 @@ public class TokenTypeTest
     public void setup()
     {
         globalSymbols = new CodeSymbols(null, classContext);
-        reader = new CodeTokenReader(globalSymbols, mthContext, token);
-        reader.nextLine();
-        reader.addErrorLogger(new ErrorLogger()
-        {
-            @Override
-            public void logError(String description, Range highlight)
-            {
-                fail(description);
-            }
-
-            @Override
-            public void logWarning(String description, Range highlight)
-            {
-                fail(description);
-            }
-        });
+        reader = initReader(globalSymbols, token);
         reader.nextToken();
     }
 

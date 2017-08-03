@@ -15,7 +15,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.theKidOfArcrania.asm.editor.code.parsing.inst.BasicParamType.*;
+import static com.theKidOfArcrania.asm.editor.code.parsing.BasicParamType.*;
 import static com.theKidOfArcrania.asm.editor.code.parsing.Range.*;
 
 /**
@@ -24,6 +24,16 @@ import static com.theKidOfArcrania.asm.editor.code.parsing.Range.*;
  */
 public class InstSpecs
 {
+    private static final MultipleParamType CONSTANTS_VALUE = new MultipleParamType(INTEGER, LONG, FLOAT, DOUBLE,
+            STRING, METHOD_SIGNATURE, FIELD_SIGNATURE, METHOD_HANDLE)
+    {
+        @Override
+        public String getName()
+        {
+            return "constants value";
+        }
+    };
+
     public static final InstSpec FIELD_INST_SPEC = new InstSpec(CLASS_NAME, IDENTIFIER,
             BasicParamType.FIELD_SIGNATURE)
     {
@@ -31,7 +41,7 @@ public class InstSpecs
         public boolean verifyParse(ErrorLogger logger, InstStatement inst)
         {
             String name = inst.getArgValue(1, String.class);
-            if (name.charAt(0) == '<') //Special method initializers
+            if (name.charAt(0) == '<') //Special method initializer
             {
                 logger.logError("Illegal character.", characterRange(inst.getArgPos(1).getStart()));
                 return false;
@@ -43,12 +53,16 @@ public class InstSpecs
         public boolean verifySymbol(ErrorLogger logger, InstStatement inst, CodeSymbols resolved)
         {
             ClassContext thisCtx = resolved.getThisContext();
+            String ownerName = inst.getArgValue(0, String.class);
             String name = inst.getArgValue(1, String.class);
-            ClassContext owner = ClassContext.findContext(inst.getArgValue(0, String.class));
+            ClassContext owner = ClassContext.findContext(ownerName);
             TypeSignature typeSig = TypeSignature.parseTypeSig(inst.getArgValue(2, String.class));
 
             if (owner == null)
-                throw new IllegalArgumentException();
+            {
+                logger.logError("Cannot resolve symbol '" + ownerName + "'.", inst.getArgPos(0));
+                return false;
+            }
 
             FieldContext fld = owner.findField(name);
             if (fld == null)
@@ -125,14 +139,14 @@ public class InstSpecs
             switch (inst.getOpcode())
             {
                 case Opcodes.BIPUSH:
-                    if (val >= Byte.MIN_VALUE && val <= Byte.MAX_VALUE)
+                    if (val < Byte.MIN_VALUE || val > Byte.MAX_VALUE)
                     {
                         logger.logError("Value must be between -128 and 127", range);
                         return false;
                     }
                     break;
                 case Opcodes.SIPUSH:
-                    if (val >= Short.MIN_VALUE && val <= Short.MAX_VALUE)
+                    if (val < Short.MIN_VALUE || val > Short.MAX_VALUE)
                     {
                         logger.logError("Value must be between -32768 and 32767", range);
                         return false;
@@ -160,7 +174,7 @@ public class InstSpecs
             ArrayType type = ArrayType.directory.get(inst.getArgValue(0, String.class));
             if (type == null)
             {
-                StringBuilder msg = new StringBuilder("Must be one of the following: ");
+                StringBuilder msg = new StringBuilder("Expected: array type of the following: ");
                 boolean first = true;
                 for (ArrayType t : ArrayType.values())
                 {
@@ -188,23 +202,29 @@ public class InstSpecs
     {
         private static final int OFFSET = 3;
 
-        private final MultipleParamType allowedArgs = new MultipleParamType(INTEGER, LONG, FLOAT, DOUBLE,
-                STRING, FIELD_SIGNATURE, METHOD_SIGNATURE, METHOD_HANDLE);
+        private final MultipleParamType allowedArgs = CONSTANTS_VALUE;
         @Override
         public Argument[] parseInstArgs(CodeTokenReader reader)
         {
+            boolean error = false;
             ArrayList<Argument> args = new ArrayList<>();
-            Collections.addAll(args, super.parseInstArgs(reader));
+            Argument[] ret = super.parseInstArgs(reader);
+            if (ret == null)
+                return null;
+            Collections.addAll(args, ret);
             while (reader.nextArgument())
             {
                 if (reader.hasTokenError())
-                    continue;
-                if (!allowedArgs.matches(reader))
-                    reader.errorExpected("constants pool argument");
+                    error = true;
+                else if (!allowedArgs.matches(reader))
+                {
+                    error = true;
+                    reader.errorExpected(allowedArgs.getName());
+                }
                 else if (allowedArgs.checkToken(reader))
                     args.add(new Argument(reader, allowedArgs));
             }
-            return args.toArray(new Argument[0]);
+            return error ? null : args.toArray(new Argument[0]);
         }
 
         @Override
@@ -223,7 +243,7 @@ public class InstSpecs
 
             Object[] args = new Object[inst.getArgSize() - OFFSET];
             for (int i = 0; i < args.length; i++)
-                args[i] = demarshall(inst, resolved, i + OFFSET);
+                args[i] = unmarshall(inst, resolved, i + OFFSET);
             writer.visitInvokeDynamicInsn(inst.getArgValue(0, String.class), inst.getArgValue(1, String.class),
                     resolved.getHandle(inst.getArgValue(2, String.class)), args);
         }
@@ -236,7 +256,7 @@ public class InstSpecs
         public boolean verifyParse(ErrorLogger logger, InstStatement inst)
         {
             String name = inst.getArgValue(0, String.class);
-            if (name.charAt(0) == '<') //Special method initializers
+            if (name.charAt(0) == '<') //Special method initializer
             {
                 logger.logError("Illegal character.", characterRange(inst.getArgPos(0).getStart()));
                 return false;
@@ -257,8 +277,7 @@ public class InstSpecs
         }
     };
 
-    public static final InstSpec LDC_INST_SPEC = new InstSpec(new MultipleParamType(INTEGER, LONG, FLOAT, DOUBLE,
-            STRING, METHOD_SIGNATURE, FIELD_SIGNATURE, METHOD_HANDLE))
+    public static final InstSpec LDC_INST_SPEC = new InstSpec(CONSTANTS_VALUE)
     {
 
         @Override
@@ -270,47 +289,52 @@ public class InstSpecs
         @Override
         public void write(MethodVisitor writer, InstStatement inst, CodeSymbols resolved)
         {
-            writer.visitLdcInsn(demarshall(inst, resolved, 0));
+            writer.visitLdcInsn(unmarshall(inst, resolved, 0));
         }
     };
 
     public static final InstSpec LOOKUP_SWITCH_INST_SPEC = new InstSpec(IDENTIFIER /*,...*/)
     {
-        private final ParamType match = BasicParamType.INTEGER;
-        private final ParamType label = BasicParamType.IDENTIFIER;
 
         @Override
         public Argument[] parseInstArgs(CodeTokenReader reader)
         {
             boolean error = false;
             ArrayList<Argument> args = new ArrayList<>();
-            Collections.addAll(args, super.parseInstArgs(reader));
+            Argument[] ret = super.parseInstArgs(reader);
+            if (ret == null)
+                return null;
+            Collections.addAll(args, ret);
             while (reader.nextArgument())
             {
-
-                if (!match.matches(reader))
+                if (error = reader.hasTokenError())
+                    break;
+                if (!INTEGER.matches(reader))
                 {
-                    reader.errorExpected(match.getName());
-                    error |= reader.hasTokenError();
-                }
-                else if (match.checkToken(reader))
-                {
-                    error |= reader.hasTokenError();
-                    args.add(new Argument(reader, match));
+                    reader.errorExpected(INTEGER.getName());
+                    error = true;
+                    break;
                 }
 
-                if (!reader.nextArgument() || !label.matches(reader))
+                if (INTEGER.checkToken(reader))
                 {
-                    reader.errorExpected("jump label identifier");
-                    error |= reader.hasTokenError();
+                    if (error = reader.hasTokenError())
+                        break;
+                    args.add(new Argument(reader, INTEGER));
                 }
-                else if (label.checkToken(reader))
-                {
-                    error |= reader.hasTokenError();
-                    args.add(new Argument(reader, label));
-                }
+
+                error = parseLabel(reader);
+                if (error)
+                    break;
+                args.add(new Argument(reader, IDENTIFIER));
             }
-            return error ? null : args.toArray(new Argument[0]);
+            if (error)
+            {
+                //noinspection StatementWithEmptyBody
+                while (reader.nextToken(true)) ;
+                return null;
+            }
+            return args.toArray(new Argument[0]);
         }
 
         @Override
@@ -320,7 +344,7 @@ public class InstSpecs
             for (int i = 0; i < argc; i += 2)
             {
                 String name = inst.getArgValue(i, String.class);
-                if (name.charAt(0) == '<') //Special method initializers
+                if (name.charAt(0) == '<') //Special method initializer
                 {
                     logger.logError("Illegal character.", characterRange(inst.getArgPos(i).getStart()));
                     return false;
@@ -373,14 +397,17 @@ public class InstSpecs
     public static final InstSpec TABLE_SWITCH_INST_SPEC = new InstSpec(INTEGER, INTEGER, IDENTIFIER /*,...*/)
     {
         private static final int OFFSET = 3;
-        private final ParamType label = BasicParamType.IDENTIFIER;
 
         @Override
         public Argument[] parseInstArgs(CodeTokenReader reader)
         {
             ArrayList<Argument> args = new ArrayList<>();
-            Collections.addAll(args, super.parseInstArgs(reader));
+            Argument[] ret = super.parseInstArgs(reader);
+            if (ret == null)
+                return null;
+            Collections.addAll(args, ret);
 
+            boolean error = false;
             int min = (Integer)args.get(0).getValue();
             int max = (Integer)args.get(1).getValue();
             if (max < min)
@@ -393,14 +420,16 @@ public class InstSpecs
             max -= min;
             for (int i = 0; i <= max; i++)
             {
-                if (!reader.nextArgument())
-                    reader.errorExpected("jump label identifier");
-                if (reader.hasTokenError())
-
-                if (!label.matches(reader))
-                    reader.errorExpected("jump label identifier");
-                else if (label.checkToken(reader))
-                    args.add(new Argument(reader, label));
+                error = parseLabel(reader);
+                if (error)
+                    break;
+                args.add(new Argument(reader, IDENTIFIER));
+            }
+            if (error)
+            {
+                //noinspection StatementWithEmptyBody
+                while (reader.nextToken(true)) ;
+                return null;
             }
             return args.toArray(new Argument[0]);
         }
@@ -412,7 +441,7 @@ public class InstSpecs
             for (int i = OFFSET - 1; i < argc; i++)
             {
                 String name = inst.getArgValue(i, String.class);
-                if (name.charAt(0) == '<') //Special method initializers
+                if (name.charAt(0) == '<') //Special method initializer
                 {
                     logger.logError("Illegal character.", characterRange(inst.getArgPos(i).getStart()));
                     return false;
@@ -445,6 +474,8 @@ public class InstSpecs
             writer.visitTableSwitchInsn(min, max, dflt, labels);
         }
     };
+
+
 
     public static final InstSpec TYPE_INST_SPEC = new InstSpec(CLASS_NAME)
     {
@@ -666,6 +697,7 @@ public class InstSpecs
                     logger.logError("Cannot resolve method handle: '" + name + "'.", inst.getArgPos(ind));
                     return false;
                 }
+                break;
             case METHOD_SIGNATURE:
             case FIELD_SIGNATURE:
                 TypeSignature typeSig = TypeSignature.parseTypeSig(inst.getArgValue(ind, String.class));
@@ -680,14 +712,14 @@ public class InstSpecs
     }
 
     /**
-     * Demarshalls an argument's type signatures and method handle (if needed) from a string.
+     * Unmarshalls an argument's type signatures and method handle (if needed) from a string.
      *
-     * @param inst the instruction to demarshall
+     * @param inst the instruction to unmarshall
      * @param resolved the resolved symbols
-     * @param ind the argument index to demarshall
-     * @return the demarshalled object.
+     * @param ind the argument index to unmarshall
+     * @return the unmarshalled object.
      */
-    private static Object demarshall(InstStatement inst, CodeSymbols resolved, int ind)
+    private static Object unmarshall(InstStatement inst, CodeSymbols resolved, int ind)
     {
         ParamType type = inst.getArgExactType(ind);
         if (!(type instanceof BasicParamType))
@@ -704,6 +736,26 @@ public class InstSpecs
         }
     }
 
-
+    /**
+     * Parses this label checking whether if an error occurred.
+     * @param reader the token reader.
+     * @return true if no errors occurred, false if errors occurred.
+     */
+    private static boolean parseLabel(CodeTokenReader reader)
+    {
+        if (!reader.nextArgument())
+        {
+            reader.errorExpected("jump label identifier");
+            return true;
+        }
+        if (reader.hasTokenError())
+            return true;
+        if (!IDENTIFIER.matches(reader))
+        {
+            reader.errorExpected("jump label identifier");
+            return true;
+        }
+        return !IDENTIFIER.checkToken(reader);
+    }
 
 }

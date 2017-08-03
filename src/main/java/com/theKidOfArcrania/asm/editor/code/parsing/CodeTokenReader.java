@@ -1,6 +1,7 @@
 package com.theKidOfArcrania.asm.editor.code.parsing;
 
 import com.theKidOfArcrania.asm.editor.context.MethodContext;
+import com.theKidOfArcrania.asm.editor.context.TypeSignature;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -12,7 +13,7 @@ import static com.theKidOfArcrania.asm.editor.code.parsing.Range.tokenRange;
 
 /**
  * Reads in token words for each line of code. This splits an existing body of code into lines, and it parses each
- * line individually as needed. This contains token type recognition and it will preparse these token types. This
+ * line individually as needed. This contains token type recognition and it will pre-parse these token types. This
  * will also provide a flexible error logging system whenever an parsing error occurs that should flag the user's
  * attention.
  *
@@ -43,7 +44,7 @@ public class CodeTokenReader
 
     private int tokenNum;
     private boolean tokenError;
-    private ArrayList<Integer> prevTokens;
+    private final ArrayList<Integer> prevTokens;
 
     private TokenType tokenType;
     private String token;
@@ -55,9 +56,7 @@ public class CodeTokenReader
     private boolean hasArgumentSeparator;
     private boolean argumentError;
 
-    private int errors;
-    private int warnings;
-    private ArrayList<ErrorLogger> errLogs;
+    private final ArrayList<ErrorLogger> errLogs;
 
 
     /**
@@ -75,7 +74,6 @@ public class CodeTokenReader
         line = null;
         lineNum = 0;
 
-        errors = warnings = 0;
         errLogs = new ArrayList<>();
 
         prevTokens = new ArrayList<>();
@@ -197,7 +195,6 @@ public class CodeTokenReader
     {
         if (tokenNum == prevTokens.size() - 1 || tokenNum == -1) //not visiting
         {
-            errors++;
             for (ErrorLogger logger : errLogs)
                 logger.logError(description, highlight);
         }
@@ -233,20 +230,9 @@ public class CodeTokenReader
     {
         if (tokenNum == prevTokens.size() - 1 || tokenNum == -1) //not visiting
         {
-            warnings++;
             for (ErrorLogger logger : errLogs)
                 logger.logWarning(description, highlight);
         }
-    }
-
-    public int getErrors()
-    {
-        return errors;
-    }
-
-    public int getWarnings()
-    {
-        return warnings;
     }
 
     public int getLineNumber()
@@ -443,7 +429,7 @@ public class CodeTokenReader
             parseStringToken();
             return true;
         }
-        else if (Character.isDigit(ch))
+        else if (Character.isDigit(ch) || ch == '.' || ch == '+' || ch == '-')
         {
             parseNumber();
             return true;
@@ -453,8 +439,12 @@ public class CodeTokenReader
             tokenType = TokenType.IDENTIFIER;
             parseToken("/>");
             if (token.contains(":"))
+            {
+                tokenVal = token.substring(0, token.length() - 1);
                 verifyLabel();
-            tokenVal = token;
+            }
+            else
+                tokenVal = token;
             return true;
         }
         else if (ch == '@') //TypeSignature
@@ -587,7 +577,6 @@ public class CodeTokenReader
      * when it encounters a whitespace or a pound-sign comment (#). This also allows a special case (allowing ':') if
      * the token type is identifier to account for labels. Reaching the end of the colon will then act as a word break.
      * @param specialChars special characters that should also be acceptable.
-     * @return true if success, false if failed.
      */
     private void parseToken(String specialChars)
     {
@@ -635,7 +624,7 @@ public class CodeTokenReader
         String errorMsg = null;
         boolean quoted = false;
         boolean escaped = false;
-        mainloop: while (++colNum < line.length())
+        mainLoop: while (++colNum < line.length())
         {
             char c = line.charAt(colNum);
             if (escaped)
@@ -653,12 +642,12 @@ public class CodeTokenReader
                     case 't': ret.append('\t'); break;
                     case 'x':
                         charSize = 2;
-                        //PASSTHROUGH
+                        //fall-through
                     case 'u':
                         if (line.length() - colNum - 1 < charSize) {
                             if (errorMsg == null)
                                 errorMsg = "Invalid hexadecimal.";
-                            continue mainloop;
+                            continue mainLoop;
                         }
                         String point = line.substring(colNum + 1, colNum + 1 + charSize).toUpperCase();
                         for (char hex : point.toCharArray())
@@ -666,7 +655,7 @@ public class CodeTokenReader
                             if (!Character.isLetterOrDigit(hex) || hex > 'F') {
                                 if (errorMsg == null)
                                     errorMsg = "Invalid hexadecimal.";
-                                continue mainloop;
+                                continue mainLoop;
                             }
                         }
                         ret.append((char)Integer.parseInt(point, HEX_RADIX));
@@ -680,6 +669,7 @@ public class CodeTokenReader
             else if (c == '"')
             {
                 quoted = true;
+                colNum++;
                 break;
             }
             else if (c == '\\')
@@ -687,8 +677,10 @@ public class CodeTokenReader
             else
                 ret.append(c);
         }
-        if (escaped || !quoted)
-            errorMsg = "Unexpected end of input.";
+        if (escaped)
+            errorMsg = "Unexpected end of input: open escape.";
+        else if (!quoted)
+            errorMsg = "Unexpected end of input: no end of quote.";
 
         tokenEndIndex = colNum;
         tokenType = TokenType.STRING;

@@ -3,6 +3,7 @@ package com.theKidOfArcrania.asm.editor.code.parsing;
 /**
  * This is an descriptor for an argument/operand to an instruction. This contains the parsed value
  * itself, and also a variety of metadata about how it was parsed.
+ * @author Henry Wang
  */
 public class Argument
 {

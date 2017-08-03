@@ -14,17 +14,18 @@ import static com.theKidOfArcrania.asm.editor.context.TypeSort.*;
 public class TypeSignature
 {
 
-    public static TypeSignature BOOLEAN_TYPE = new TypeSignature(BOOLEAN);
-    public static TypeSignature BYTE_TYPE = new TypeSignature(BYTE);
-    public static TypeSignature CHAR_TYPE = new TypeSignature(CHAR);
-    public static TypeSignature DOUBLE_TYPE = new TypeSignature(DOUBLE);
-    public static TypeSignature FLOAT_TYPE = new TypeSignature(FLOAT);
-    public static TypeSignature INTEGER_TYPE = new TypeSignature(INTEGER);
-    public static TypeSignature LONG_TYPE = new TypeSignature(LONG);
-    public static TypeSignature SHORT_TYPE = new TypeSignature(SHORT);
-    public static TypeSignature VOID_TYPE = new TypeSignature(VOID);
+    public static final TypeSignature BOOLEAN_TYPE = new TypeSignature(BOOLEAN);
+    public static final TypeSignature BYTE_TYPE = new TypeSignature(BYTE);
+    public static final TypeSignature CHAR_TYPE = new TypeSignature(CHAR);
+    public static final TypeSignature DOUBLE_TYPE = new TypeSignature(DOUBLE);
+    public static final TypeSignature FLOAT_TYPE = new TypeSignature(FLOAT);
+    public static final TypeSignature INTEGER_TYPE = new TypeSignature(INTEGER);
+    public static final TypeSignature LONG_TYPE = new TypeSignature(LONG);
+    public static final TypeSignature SHORT_TYPE = new TypeSignature(SHORT);
+    public static final TypeSignature VOID_TYPE = new TypeSignature(VOID);
 
-    private static EnumMap<TypeSort, TypeSignature> primTypes;
+    private static final EnumMap<TypeSort, TypeSignature> primTypes;
+    private static final Map<Class<?>, TypeSignature> primClasses;
 
     static {
         primTypes = new EnumMap<>(TypeSort.class);
@@ -32,6 +33,47 @@ public class TypeSignature
                 LONG_TYPE, SHORT_TYPE, VOID_TYPE};
         for (TypeSignature sig : types)
             primTypes.put(sig.getSort(), sig);
+
+        primClasses = new HashMap<>();
+        primClasses.put(boolean.class, BOOLEAN_TYPE);
+        primClasses.put(byte.class, BYTE_TYPE);
+        primClasses.put(char.class, CHAR_TYPE);
+        primClasses.put(double.class, DOUBLE_TYPE);
+        primClasses.put(float.class, FLOAT_TYPE);
+        primClasses.put(int.class, INTEGER_TYPE);
+        primClasses.put(long.class, LONG_TYPE);
+        primClasses.put(short.class, SHORT_TYPE);
+        primClasses.put(void.class, VOID_TYPE);
+
+    }
+
+    /**
+     * Creates a type signature from an existing class.
+     * @param type the class to parse signature from.
+     * @return a valid type signature representing the class.
+     */
+    public static TypeSignature fromClass(Class<?> type)
+    {
+        if (type.isPrimitive())
+            return primClasses.get(type);
+        else if (type.isArray())
+            return TypeSignature.parseTypeSig(type.getName().replace('.', '/'));
+        else
+            return new TypeSignature(type.getName().replace('.', '/'));
+    }
+
+    /**
+     * Creates a type signature from a method signature from reflection.
+     * @param parameterTypes the parameter types.
+     * @param returnType the return type.
+     * @return a valid method type signature.
+     */
+    public static TypeSignature fromMethod(Class<?>[] parameterTypes, Class<?> returnType)
+    {
+        TypeSignature[] params = new TypeSignature[parameterTypes.length];
+        for (int i = 0; i < params.length; i++)
+            params[i] = fromClass(parameterTypes[i]);
+        return new TypeSignature(params, fromClass(returnType));
     }
 
     /**
@@ -139,12 +181,12 @@ public class TypeSignature
 
     /**
      * Constructor for object type signatures.
-     * @param classDescript the associated class descriptor.
+     * @param classDescriptor the associated class descriptor.
      */
-    private TypeSignature(String classDescript)
+    private TypeSignature(String classDescriptor)
     {
         sort = TypeSort.OBJECT;
-        this.classDescriptor = classDescript;
+        this.classDescriptor = classDescriptor;
     }
 
     /**
@@ -261,6 +303,7 @@ public class TypeSignature
                 break;
             case OBJECT:
                 result = 31 * result + classDescriptor.hashCode();
+                break;
             case METHOD:
                 result = 31 * result + Arrays.hashCode(parameterTypes);
                 result = 31 * result + returnType.hashCode();

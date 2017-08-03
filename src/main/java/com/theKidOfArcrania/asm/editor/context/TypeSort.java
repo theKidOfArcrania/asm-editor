@@ -10,7 +10,7 @@ public enum TypeSort
     ARRAY('['), BOOLEAN('Z'), BYTE('B'), CHAR('C'), DOUBLE('D'), FLOAT('F'), INTEGER('I'), LONG('J'), SHORT('S'),
     VOID('V'), METHOD('(', ')'), OBJECT('L', ';');
 
-    private char marker;
+    private final char marker;
     private char endMarker;
 
     /**

@@ -21,12 +21,12 @@ public class LabelStatement extends CodeStatement
     {
         if (reader.hasTokenError() || reader.getTokenType() != TokenType.LABEL)
             throw new IllegalStateException();
-        return new LabelStatement(reader, reader.getToken());
+        return new LabelStatement(reader, (String)reader.getTokenValue());
     }
 
-    private CodeTokenReader reader;
-    private String name;
-    private Label symbol;
+    private final CodeTokenReader reader;
+    private final String name;
+    private final Label symbol;
 
     /**
      * Constructs a new label from the name and the associated token reader.

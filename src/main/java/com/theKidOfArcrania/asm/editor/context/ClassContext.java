@@ -4,6 +4,9 @@ package com.theKidOfArcrania.asm.editor.context;
 
 import com.theKidOfArcrania.asm.editor.code.parsing.FallibleFunction;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
 
@@ -131,6 +134,19 @@ public class ClassContext
         Class[] itrfs = cls.getInterfaces();
         for (Class itrf : itrfs)
             ctx.addInterface(findContextFromClass(itrf));
+
+        int fldMods = Modifier.fieldModifiers();
+        for (Field fld : cls.getDeclaredFields())
+            ctx.addField(fld.getModifiers() & fldMods, fld.getName(), TypeSignature.fromClass(fld.getType()));
+
+        int mthMods = Modifier.methodModifiers();
+        for (Method mth : cls.getDeclaredMethods())
+            ctx.addMethod(mth.getModifiers() & mthMods, mth.getName(),
+                    TypeSignature.fromMethod(mth.getParameterTypes(), mth.getReturnType()));
+        for (Constructor<?> cnr : cls.getDeclaredConstructors())
+            ctx.addMethod(cnr.getModifiers() & mthMods, "<init>",
+                    TypeSignature.fromMethod(cnr.getParameterTypes(), void.class));
+
         return ctx;
     }
 
@@ -399,8 +415,8 @@ public class ClassContext
      * @param mth the method to rename.
      * @param newName the new name to set.
      * @throws IllegalArgumentException if the specified method is not owned by this class
-     * @throws IllegalArgumentException if method name is not a valid identifier (can be &lt;init&gt; or &lt;
-     *   clinit&gt;) or if type signature is not for a method.
+     * @throws IllegalArgumentException if method name is not a valid identifier (can be &lt;init&gt;) or if type
+     * signature is not for a method.
      * @return true if rename is successful, otherwise returns false.
      */
     public boolean renameMethod(MethodContext mth, String newName)
@@ -417,8 +433,8 @@ public class ClassContext
      * @param newName the new name to set.
      * @param newSignature the new signature to set.
      * @throws IllegalArgumentException if the specified method is not owned by this class.
-     * @throws IllegalArgumentException if method name is not a valid identifier (can be &lt;init&gt; or &lt;
-     *   clinit&gt;) or if type signature is not for a method.
+     * @throws IllegalArgumentException if method name is not a valid identifier (can be &lt;init&gt;) or if type
+     * signature is not for a method.
      * @return true if rename is successful, otherwise returns false.
      */
     public boolean renameMethod(MethodContext mth, String newName, TypeSignature newSignature)
@@ -588,16 +604,16 @@ public class ClassContext
                 ctx = other.getSuperClass();
             }
 
-            Queue<ClassContext> untouchedIntefaces = new LinkedList<>();
-            untouchedIntefaces.addAll(itrfs);
-            while (!untouchedIntefaces.isEmpty())
+            Queue<ClassContext> untouchedInterfaces = new LinkedList<>();
+            untouchedInterfaces.addAll(itrfs);
+            while (!untouchedInterfaces.isEmpty())
             {
-                ctx = untouchedIntefaces.remove();
+                ctx = untouchedInterfaces.remove();
                 for (ClassContext itrf : ctx.getInterfaces())
                 {
                     if (itrfs.add(ctx))
                     {
-                        untouchedIntefaces.add(itrf);
+                        untouchedInterfaces.add(itrf);
                         if (itrf.equals(this))
                             return true;
                     }

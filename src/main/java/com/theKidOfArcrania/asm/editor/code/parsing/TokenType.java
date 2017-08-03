@@ -2,6 +2,7 @@ package com.theKidOfArcrania.asm.editor.code.parsing;
 
 /**
  * Represents all the possible token types that can be parsed by the {@link CodeTokenReader}.
+ * @author Henry Wang
  */
 public enum TokenType
 {

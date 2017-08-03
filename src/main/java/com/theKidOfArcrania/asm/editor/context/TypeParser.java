@@ -11,7 +11,7 @@ import static com.theKidOfArcrania.asm.editor.context.TypeSort.*;
 class TypeParser
 {
 
-    private static TypeSort[] nameMarkers = new TypeSort[Byte.MAX_VALUE];
+    private static final TypeSort[] nameMarkers = new TypeSort[Byte.MAX_VALUE];
 
     static
     {

@@ -34,7 +34,7 @@ public abstract class MemberContext
     }
 
     private final ClassContext owner;
-    private int modifiers;
+    private final int modifiers;
     String name;
     TypeSignature signature;
 
@@ -52,7 +52,7 @@ public abstract class MemberContext
         this.name = name;
         this.signature = signature;
 
-        if (this instanceof MethodContext && (name.equals("<init>") || name.equals("<clinit>")))
+        if (this instanceof MethodContext && name.equals("<init>"))
             return;
         ensureIdentifier(name);
     }

@@ -1,8 +1,6 @@
 package com.theKidOfArcrania.asm.editor.code.parsing;
 
-import com.theKidOfArcrania.asm.editor.code.highlight.Highlighter;
-import com.theKidOfArcrania.asm.editor.code.highlight.Syntax;
-import com.theKidOfArcrania.asm.editor.code.highlight.SyntaxType;
+import com.theKidOfArcrania.asm.editor.code.highlight.*;
 import com.theKidOfArcrania.asm.editor.context.MethodContext;
 
 import java.util.ArrayList;
@@ -63,11 +61,26 @@ public class CodeParser
             reader.nextLine();
             parseLine();
         }
+
+        reader.addErrorLogger(new ErrorLogger()
+        {
+            @Override
+            public void logError(String description, Range highlight)
+            {
+                highlighter.insertTag(new Tag(TagType.ERROR_TAG, highlight, description));
+            }
+
+            @Override
+            public void logWarning(String description, Range highlight)
+            {
+                highlighter.insertTag(new Tag(TagType.WARNING_TAG, highlight, description));
+            }
+        });
     }
 
     /**
      * Inserts a new line of code at the particular line number. This new line will be marked dirty, but will not be
-     * automatically parsed until a call to {@link #reparse()}.
+     * automatically parsed until a call to {@link #reparse(boolean)}.
      *
      * @param lineNum the 1-based line number.
      * @param line the line to insert.
@@ -80,7 +93,7 @@ public class CodeParser
 
     /**
      * Modifies a line of code. This will mark the current line as dirty, but will not reparse the code until a call
-     * to {@link #reparse()}.
+     * to {@link #reparse(boolean)}.
      *
      * @param lineNum the 1-based line number.
      * @param line the line to modify to
@@ -89,7 +102,7 @@ public class CodeParser
     {
         reader.modifyLine(lineNum - 1, line);
         parsedCode.set(lineNum - 1, DIRTY_STATEMENT);
-        highlighter.invalidLine(lineNum);
+        highlighter.invalidateLine(lineNum);
     }
 
     /**
@@ -104,44 +117,101 @@ public class CodeParser
     }
 
     /**
-     * Reparses all the lines of dirty code.
+     * Re-parses all the lines of dirty code. This may emit any parsing errors if encountered. By definition this
+     * function is successful if and only if every single line is parsed, and is not left dirty or invalid.
+     * @param parseInvalid determines whether to reparse any invalid lines.
+     * @return true if re-parse was successful, false if some errors occurred while re-parsing.
      */
-    public void reparse()
+    public boolean reparse(boolean parseInvalid)
     {
+        boolean success = true;
         for (int i = 0; i < parsedCode.size(); i++)
         {
-            if (parsedCode.get(i) == DIRTY_STATEMENT)
+            boolean invalid = parsedCode.get(i) == INVALID_STATEMENT;
+            boolean dirty = parsedCode.get(i) == DIRTY_STATEMENT;
+
+            if (dirty || invalid && parseInvalid)
             {
                 try
                 {
                     reader.beginLine(i + 1);
-                    parseLine();
+                    success &= parseLine();
                 }
                 catch (RuntimeException e)
                 {
                     //Better error logging.
+                    reader.error("Error occurred while parsing line: " + e.toString() + ".",
+                            Range.tokenRange(i + 1, 0, reader.getLine().length()));
                     e.printStackTrace();
+                    success = false;
                 }
             }
+            else if (invalid)
+                success = false;
         }
+        return success;
+    }
+
+    /**
+     * Ensures that all the symbols referred to by the code are resolved. This should be faster than the parsing
+     * time, so this will be called on each parsed statement each time.
+     * @return true if resolution was successful, false if it failed.
+     */
+    public boolean resolveSymbols()
+    {
+        boolean success = true;
+        for (int i = 0; i < parsedCode.size(); i++)
+        {
+            CodeStatement s = parsedCode.get(i);
+            if (s != INVALID_STATEMENT && s != DIRTY_STATEMENT)
+            {
+                highlighter.invalidateTags(i + 1);
+                success &= s.resolveSymbols();
+            }
+        }
+        return success;
+    }
+
+    /**
+     * Determines whether if a line is dirty. A line is defined as dirty if it has been modified since the last time
+     * it was parsed.
+     * @param line the 1-based line number
+     * @return true if dirty, false if not dirty.
+     */
+    public boolean isLineDirty(int line)
+    {
+        return parsedCode.get(line - 1) == DIRTY_STATEMENT;
+    }
+
+    /**
+     * Determines whether if a line is malformed. A line is malformed a parsing error occurred the last time it was
+     * parsed.
+     * @param line the 1-based line number.
+     * @return true if malformed, false if not malformed.
+     */
+    public boolean isLineMalformed(int line)
+    {
+        return parsedCode.get(line - 1) == INVALID_STATEMENT;
     }
 
     /**
      * Parse the currently selected line in the reader.
      * @throws IllegalStateException if this token reader isn't currently on a line.
+     * @return true the parsing line was successful, false if an error occurred.
      */
-    private void parseLine()
+    private boolean parseLine()
     {
         if (reader.getLineNumber() < 1)
             throw new IllegalStateException("Not currently reading a line.");
 
+        boolean success = true;
         int lineInd = reader.getLineNumber() - 1;
         if (!reader.nextToken())
             parsedCode.set(lineInd, new EmptyStatement());
         else if (reader.hasTokenError())
         {
             parsedCode.set(lineInd, INVALID_STATEMENT);
-            return;
+            return false;
         }
         else if (reader.getTokenType() != TokenType.IDENTIFIER)
         {
@@ -162,11 +232,13 @@ public class CodeParser
                     reader.errorExpected("label, instruction, or directive");
                     line = null;
             }
-            parsedCode.set(lineInd, line == null ? INVALID_STATEMENT : line);
+            success = line != null;
+            parsedCode.set(lineInd, success ? line : INVALID_STATEMENT);
         }
 
         //Syntax highlighting.
         parseSyntaxHighlight();
+        return success;
     }
 
     /**

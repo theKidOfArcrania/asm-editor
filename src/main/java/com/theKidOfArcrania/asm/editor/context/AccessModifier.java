@@ -4,6 +4,7 @@ import java.lang.reflect.Modifier;
 
 /**
  * Represents the various access modifiers that can be applied on a member of a class.
+ * @author Henry Wang
  */
 public enum AccessModifier
 {

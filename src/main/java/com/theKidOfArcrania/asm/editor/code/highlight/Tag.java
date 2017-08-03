@@ -41,4 +41,19 @@ public class Tag
         this.span = span;
         this.tagDescription = tagDescription;
     }
+
+    public TagType getType()
+    {
+        return type;
+    }
+
+    public Range getSpan()
+    {
+        return span;
+    }
+
+    public String getTagDescription()
+    {
+        return tagDescription;
+    }
 }

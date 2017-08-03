@@ -1,6 +1,5 @@
 package com.theKidOfArcrania.asm.editor.code.parsing;
 
-import com.theKidOfArcrania.asm.editor.code.highlight.Syntax;
 import org.objectweb.asm.MethodVisitor;
 
 /**
@@ -25,7 +24,7 @@ public abstract class CodeStatement
 
     /**
      * Resets any side-effects that parsing this code statement might have. This occurs whenever this statement is
-     * removed, or if reparsing has to occur. This SHOULD NOT emit any errors.
+     * removed, or if re-parsing has to occur. This SHOULD NOT emit any errors.
      */
     public abstract void reset();
 }

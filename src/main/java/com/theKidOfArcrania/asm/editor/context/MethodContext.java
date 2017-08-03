@@ -16,8 +16,8 @@ public class MethodContext extends MemberContext
      * @param modifiers the modifiers (i.e. access modifiers) for this method.
      * @param name the identifier of the method.
      * @param signature the signature of the method.
-     * @throws IllegalArgumentException if method name is not a valid identifier (can be &lt;init&gt; or &lt;
-     * clinit&gt;), if type signature is not for a method, or if there are some illegal modifiers.
+     * @throws IllegalArgumentException if method name is not a valid identifier (can be &lt;init&gt;), if type
+     * signature is not for a method, or if there are some illegal modifiers.
      */
     MethodContext(ClassContext owner, int modifiers, String name, TypeSignature signature)
     {

@@ -57,9 +57,9 @@ public class TypeSignature
         if (type.isPrimitive())
             return primClasses.get(type);
         else if (type.isArray())
-            return TypeSignature.parseTypeSig(type.getName().replace('.', '/'));
+            return TypeSignature.parseTypeSig(ClassContext.getInternalName(type));
         else
-            return new TypeSignature(type.getName().replace('.', '/'));
+            return new TypeSignature(ClassContext.getInternalName(type));
     }
 
     /**
@@ -309,5 +309,30 @@ public class TypeSignature
                 result = 31 * result + returnType.hashCode();
         }
         return result;
+    }
+
+    @Override
+    public String toString()
+    {
+        switch (sort)
+        {
+            case ARRAY:
+                String element = elem.toString();
+                StringBuilder sb = new StringBuilder(dim + element.length());
+                for (int i = 0; i < dim; i++)
+                    sb.append(ARRAY.getMarker());
+                sb.append(element);
+                return sb.toString();
+            case OBJECT:
+                return "L" + classDescriptor + ";";
+            case METHOD:
+                sb = new StringBuilder("(");
+                for (TypeSignature parameterType : parameterTypes)
+                    sb.append(parameterType);
+                sb.append(")").append(returnType.toString());
+                return sb.toString();
+            default:
+                return "" + sort.getMarker();
+        }
     }
 }

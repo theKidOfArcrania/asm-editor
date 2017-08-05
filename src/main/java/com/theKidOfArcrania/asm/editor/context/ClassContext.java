@@ -1,12 +1,9 @@
 package com.theKidOfArcrania.asm.editor.context;
 
 
+import org.objectweb.asm.*;
 
-import com.theKidOfArcrania.asm.editor.code.parsing.FallibleFunction;
-
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.util.*;
 
@@ -16,42 +13,138 @@ import java.util.*;
  */
 public class ClassContext
 {
+
+    /**
+     * A class visitor that parses a class-file meta-data, and generates a class context from the resulting class data.
+     * @author Henry Wang
+     */
+    private static class ClassDataParser extends ClassVisitor
+    {
+        private ClassContext ctx;
+
+        /**
+         * Constructs a ClassDataParser.
+         */
+        public ClassDataParser()
+        {
+            super(Opcodes.ASM5);
+        }
+
+        @Override
+        public void visit(int version, int access, String name, String signature, String superName, String[] interfaces)
+        {
+            //TODO: implement generics (signature)
+            if (!ctx.name.equals(name))
+                throw new IllegalArgumentException("Name does not match up with class.");
+
+            ctx.resolved = true;
+            ctx.setInterface(Modifier.isInterface(access));
+            ctx.setModifiers(access);
+
+            if (!ctx.isInterface() && !ctx.getName().equals("java/lang/Object"))
+                ctx.setSuperClass(findContext0(superName, true));
+            for (String itrf : interfaces)
+                ctx.addInterface(findContext0(itrf, true));
+        }
+
+        @Override
+        public void visitOuterClass(String owner, String name, String desc)
+        {
+            ClassContext outer = findContext0(owner, true);
+            assert outer != null;
+            ctx.outer = outer;
+            outer.addInnerClass(ctx);
+
+            TypeSignature sig = TypeSignature.parseTypeSig(desc);
+            if (name != null && sig != null)
+            {
+                outer.postLoad.add(() ->
+                {
+                    MethodContext mth = outer.findMethod(name, sig);
+                    ctx.outerMethod = mth;
+                });
+            }
+        }
+
+        @Override
+        public void visitInnerClass(String name, String outerName, String innerName, int access)
+        {
+            if (name.equals(outerName))
+            {
+                ClassContext inner = findContext0(name, true);
+                assert inner != null;
+                ctx.addInnerClass(inner);
+                inner.setInnerName(innerName);
+                inner.setOuterClass(ctx);
+            }
+        }
+
+        @Override
+        public AnnotationVisitor visitAnnotation(String desc, boolean visible)
+        {
+            //TODO: annotations
+            return null;
+        }
+
+        @Override
+        public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String desc, boolean visible)
+        {
+            //TODO: annotations
+            return null;
+        }
+
+        @Override
+        public FieldVisitor visitField(int access, String name, String desc, String signature, Object value)
+        {
+            //TODO: implement default values.
+            FieldContext fld = ctx.addField(access, name, TypeSignature.parseTypeSig(desc));
+            if (Modifier.isStatic(access))
+                fld.setDefaultValue(value);
+            return null; //TODO: annotations
+        }
+
+        @Override
+        public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions)
+        {
+            //TODO: implement generics.
+            MethodContext mth = ctx.addMethod(access, name, TypeSignature.parseTypeSig(desc));
+            for (String except : exceptions)
+                mth.addException(findContext0(except, true));
+            return mth.writeBody();
+        }
+
+        @Override
+        public void visitEnd()
+        {
+            List<Runnable> post = new ArrayList<>(ctx.postLoad);
+            ctx.postLoad.clear();
+            for (Runnable r : post)
+                r.run();
+        }
+    }
+
     public static final ClassContext OBJECT_CONTEXT;
     private static final HashMap<String, ClassContext> CLASS_CONTEXT_MAP;
 
     static
     {
         CLASS_CONTEXT_MAP = new HashMap<>();
-        OBJECT_CONTEXT = ClassContext.findContextFromClass(Object.class); //Make sure nothing overrides the Object class
+        OBJECT_CONTEXT = ClassContext.findContext("java/lang/Object"); //Make sure nothing overrides the Object class
     }
 
     /**
-     * Obtains the class internal name for the specified class. This will only work with classes or interfaces.
+     * Obtains the class internal name for the specified class. This will only work with non-primitives.
      * @param cls the class to query.
      * @return the internal name.
-     * @throws IllegalArgumentException if the class does not describe a class or interface.
+     * @throws IllegalArgumentException if the class is a primitive type.
      */
     public static String getInternalName(Class<?> cls)
     {
-        if (cls.isPrimitive() || cls.isArray() || cls.isAnnotation())
-            throw new IllegalArgumentException("Not a class or interface");
+        if (cls.isPrimitive())
+            throw new IllegalArgumentException("Cannot get internal name of primitive.");
         return cls.getName().replace('.', '/');
     }
 
-    /**
-     * Finds the associated class context from this class. If it does not already exist, it will add the class to the
-     * list of class contexts.
-     * @param cls the class object to search from.
-     * @return the class context created/found
-     */
-    public static ClassContext findContextFromClass(Class<?> cls)
-    {
-        if (cls == null)
-            return null;
-
-        String name = getInternalName(cls);
-        return CLASS_CONTEXT_MAP.computeIfAbsent(name, n -> createNewContextFromClass(cls, n));
-    }
 
     /**
      * Finds the associated class context with this name. Note that this will not check whether if the name is in a
@@ -62,15 +155,40 @@ public class ClassContext
      */
     public static ClassContext findContext(String name)
     {
-        ClassContext existing = CLASS_CONTEXT_MAP.get(name);
-        if (existing == null)
-            return FallibleFunction.tryOptional(Class::forName, name.replace('/', '.'))
-                    .map(ClassContext::findContextFromClass).orElse(null);
-        return existing;
+        return findContext0(name, false);
     }
 
     /**
-     * Creates a blank new class context.
+     * Finds associated class context with this name. If no such class context exist, this will return an unresolved
+     * class context. This is used as a placeholder object for bad classes.
+     * @param name the name of the class context.
+     * @param unresolved whether to return an unresolved class if the class cannot be resolved
+     * @return a class context.
+     */
+    private static ClassContext findContext0(String name, boolean unresolved)
+    {
+        ensureClassNameFormat(name);
+        ClassContext ctx = CLASS_CONTEXT_MAP.computeIfAbsent(name, ClassContext::new);
+        if (!ctx.isResolved())
+        {
+            try
+            {
+                loadContextFromClass(ctx, new ClassReader(name));
+            }
+            catch (IOException e)
+            {
+                //e.printStackTrace();
+                System.err.println(name + " failed to load.");
+                return unresolved ? ctx : null;
+            }
+        }
+        if (!unresolved && !ctx.checkResolved())
+            return null;
+        return ctx;
+    }
+
+    /**
+     * Creates a blank new class context. This will mark this class context as resolved.
      * @param name the internal name of the class.
      * @param itrf whether if this is an interface.
      * @throws IllegalArgumentException if a super class is passed for interfaces.
@@ -79,75 +197,52 @@ public class ClassContext
      */
     public static ClassContext createContext(String name, boolean itrf)
     {
-        if (CLASS_CONTEXT_MAP.containsKey(name))
+        ClassContext ctx = CLASS_CONTEXT_MAP.computeIfAbsent(name, n -> new ClassContext(n, itrf));
+        if (ctx.isResolved())
             throw new IllegalArgumentException("Class context '" + name + "' already exists.");
-        ClassContext ctx = new ClassContext(name, itrf);
-        CLASS_CONTEXT_MAP.put(name, ctx);
+        ctx.setInterface(itrf);
+        ctx.resolved = true;
         return ctx;
     }
 
     /**
-     * Creates a new class context initializing it with some information.
+     * Creates a new class context initializing it with some information. This will mark this class as resolved.
      * @param name the internal name of the class.
      * @param modifiers the access modifiers if any.
      * @param outer the outer class that this class context is in.
-     * @param superClass the super class of this class (must be null for interfaces). If null,
-     *              {@link Object} assumed.
+     * @param superClass the super class of this class (must be null for interfaces). If null, and this class context
+     *                  is not an interface {@link Object} assumed.
      * @param interfaces the number of interfaces that this class explicitly extends/ implements
      * @return the created class context.
-     * @throws IllegalArgumentException if a super class is passed for interfaces.
-     * @throws IllegalStateException if such a class context already exists.
+     * @throws IllegalArgumentException if such a class context already exists.
      */
     public static ClassContext createContext(String name, int modifiers, ClassContext outer, ClassContext superClass,
                                              ClassContext[] interfaces)
     {
-        if (CLASS_CONTEXT_MAP.containsKey(name))
+        ClassContext ctx = CLASS_CONTEXT_MAP.computeIfAbsent(name, ClassContext::new);
+        if (ctx.isResolved())
             throw new IllegalArgumentException("Class context '" + name + "' already exists.");
-        ClassContext ctx = new ClassContext(name, Modifier.isInterface(modifiers));
+
         ctx.setOuterClass(outer);
         ctx.setModifiers(modifiers);
         ctx.setSuperClass(superClass);
         for (ClassContext itrf : interfaces)
             ctx.addInterface(itrf);
-
-        CLASS_CONTEXT_MAP.put(name, ctx);
+        ctx.resolved = true;
         return ctx;
     }
 
     /**
-     * Creates a new class context from an existing class object.
-     * @param cls the class object to create from.
-     * @param name the internal name of the class.
-     * @return a new class-context.
+     * Loads an existing class context with the contents of a class reader
+     * @param ctx the class context object to load to.
+     * @param cls the class object to load from.
+     * @throws IllegalArgumentException if the name in the class context doesn't match up with the class reader.
      */
-    private static ClassContext createNewContextFromClass(Class<?> cls, String name)
+    private static void loadContextFromClass(ClassContext ctx, ClassReader cls)
     {
-        ClassContext enclosing = findContextFromClass(cls.getEnclosingClass());
-        ClassContext superClass = findContextFromClass(cls.getSuperclass());
-
-        ClassContext ctx = new ClassContext(name, cls.isInterface());
-        ctx.setOuterClass(enclosing);
-        ctx.setModifiers(cls.getModifiers());
-        if (superClass != null)
-            ctx.setSuperClass(superClass);
-
-        Class[] itrfs = cls.getInterfaces();
-        for (Class itrf : itrfs)
-            ctx.addInterface(findContextFromClass(itrf));
-
-        int fldMods = Modifier.fieldModifiers();
-        for (Field fld : cls.getDeclaredFields())
-            ctx.addField(fld.getModifiers() & fldMods, fld.getName(), TypeSignature.fromClass(fld.getType()));
-
-        int mthMods = Modifier.methodModifiers();
-        for (Method mth : cls.getDeclaredMethods())
-            ctx.addMethod(mth.getModifiers() & mthMods, mth.getName(),
-                    TypeSignature.fromMethod(mth.getParameterTypes(), mth.getReturnType()));
-        for (Constructor<?> cnr : cls.getDeclaredConstructors())
-            ctx.addMethod(cnr.getModifiers() & mthMods, "<init>",
-                    TypeSignature.fromMethod(cnr.getParameterTypes(), void.class));
-
-        return ctx;
+        ClassDataParser parser = new ClassDataParser();
+        parser.ctx = ctx;
+        cls.accept(parser, ClassReader.SKIP_DEBUG);
     }
 
     /**
@@ -204,40 +299,134 @@ public class ClassContext
             throw new IllegalArgumentException("Class divider/ slash with no identifier.");
     }
 
+    private boolean resolved;
+    private boolean fullyResolved;
+    private final IndexHashSet<Runnable> postLoad;
+
     private String name;
     private int modifiers;
+
     private ClassContext superClass;
+    private final IndexHashSet<ClassContext> interfaces;
+
+    private final IndexHashSet<ClassContext> inners;
     private ClassContext outer;
-    private Set<ClassContext> interfaces;
+    private MethodContext outerMethod;
+    private String innerName;
 
-    private Map<FieldContext, FieldContext> fields;
-    private Map<MethodContext, MethodContext> methods;
-
+    private final IndexHashSet<MemberContext> members;
 
     /**
-     * Creates a class context that is an inner class (can be anonymous)
+     * Creates a class context initializing as a public top-level class. This will initially mark this class as not
+     * resolved.
+     * @param name the name of the class to create.
+     */
+    private ClassContext(String name)
+    {
+        ensureClassNameFormat(name);
+        CLASS_CONTEXT_MAP.put(name, this);
+
+        this.modifiers = Modifier.PUBLIC;
+        this.name = name;
+        this.outer = null;
+        this.superClass = OBJECT_CONTEXT;
+        this.interfaces = new IndexHashSet<>();
+        this.inners = new IndexHashSet<>();
+
+        members = new IndexHashSet<>();
+
+        postLoad = new IndexHashSet<>();
+    }
+
+    /**
+     * Creates a class context initializing status whether if it is an interface or class. This will initially mark
+     * this class as not resolved
      * @param name the internal name of the class.
      * @param itrf whether to create an interface or class.
-     * @throws IllegalArgumentException if a super class is passed for interfaces, if the super class is an
-     * interface, or if one of the interfaces is a class
+     * @throws IllegalArgumentException if name is invalid
      */
     private ClassContext(String name, boolean itrf)
     {
-        ensureClassNameFormat(name);
-        boolean isObject = name.equals("java/lang/Object");
-        if (isObject && itrf)
-            throw new IllegalArgumentException("Cannot change interface-bit of java.lang.Object");
+        this(name);
+        setInterface(itrf);
+    }
 
-        this.modifiers = Modifier.PUBLIC;
-        if (itrf)
-            this.modifiers |= Modifier.INTERFACE;
-        this.name = name;
-        this.outer = null;
-        this.superClass = (itrf || isObject) ? null : OBJECT_CONTEXT;
-        this.interfaces = new HashSet<>();
+    /**
+     * Checks whether if this class is fully resolved. This will recursively check whether if all the referred
+     * classes are also resolved.
+     * @return true if fully resolved, false if some classes have not been resolved.
+     */
+    public boolean checkResolved()
+    {
+        return checkResolved0(new HashSet<>());
+    }
 
-        fields = new HashMap<>();
-        methods = new HashMap<>();
+    /**
+     * Recursively checks whether if all its referred classes are resolved as well.
+     * @param resolving the list of class contexts in the process of resolving.
+     * @return true if fully resolved, false if some classes have not been resolved.
+     */
+    private boolean checkResolved0(Set<ClassContext> resolving)
+    {
+        if (resolving.contains(this))
+            return true;
+        resolving.add(this);
+        if (!resolved)
+            return false;
+        if (fullyResolved)
+            return true;
+
+        if (superClass != null && !superClass.checkResolved0(resolving))
+            return false;
+        for (ClassContext ctx : interfaces)
+            if (!ctx.checkResolved0(resolving))
+                return false;
+        if (outer != null && !outer.checkResolved0(resolving))
+            return false;
+        for (ClassContext ctx : inners)
+            if (!ctx.checkResolved0(resolving))
+                return false;
+        for (MemberContext mem : members)
+        {
+            if (mem instanceof MethodContext)
+            {
+                for (ClassContext exc : ((MethodContext)mem).getExceptions())
+                    if (!exc.checkResolved0(resolving))
+                        return false;
+            }
+        }
+
+        fullyResolved = true;
+        return true;
+        //TODO: resolve annotations as well.
+    }
+
+    /**
+     * Sets whether if this is an interface or class. This will automatically change the super class to
+     * <code>null</code> if turned to interface, or set to <code>java/lang/Object</code> for classes. If
+     * <code>itrf</code> is the same as our current status of interface or not, this method will do nothing in effect.
+     * @param itrf true to transform into an interface, false to transform into a class
+     */
+    public void setInterface(boolean itrf)
+    {
+        if (isInterface() == itrf)
+            return;
+
+        setModifierBits(Modifier.INTERFACE, itrf ? Modifier.INTERFACE : 0);
+        if (itrf || name.equals("java/lang/Object"))
+            superClass = null;
+        else
+            superClass = OBJECT_CONTEXT;
+    }
+
+    /**
+     * This only checks whether if this class is resolved (use {@link #checkResolved()} to recursively check for
+     * resolution).
+     * @return true if resolved, false if not resolved
+     */
+    public boolean isResolved()
+    {
+        return resolved;
     }
 
     public AccessModifier getAccessModifier()
@@ -271,15 +460,6 @@ public class ClassContext
 
     public void setModifiers(int modifiers)
     {
-        if (outer == null && (Modifier.isProtected(modifiers) || Modifier.isPrivate(modifiers)))
-            throw new IllegalArgumentException("Top-level class cannot be protected or private.");
-        if (Modifier.isInterface(modifiers) ^ Modifier.isInterface(this.modifiers))
-        {
-            if (Modifier.isInterface(modifiers) && name.equals("java/lang/Object"))
-                throw new IllegalArgumentException("Cannot change interface-bit of java.lang.Object");
-            superClass = Modifier.isInterface(modifiers) ? null : OBJECT_CONTEXT;
-        }
-
         this.modifiers = modifiers;
     }
 
@@ -305,21 +485,18 @@ public class ClassContext
 
     /**
      * Sets the super class that this class extends. If <code>superClass</code> is null, the
-     * <code>java.lang.Object</code> class context is assumed.
+     * <code>java.lang.Object</code> class context is assumed. If this is an interface or java/lang/Object, it will
+     * silently ignore the call if passed something other than <code>null</code>.
      * @param superClass the new super class to extend from.
-     * @throws IllegalStateException if this is called on the <code>java.lang.Object</code> class context, or on an
-     * interface.
-     * @throws IllegalArgumentException if the passed class context is an interface.
      */
     public void setSuperClass(ClassContext superClass)
     {
-        if (name.equals("java/lang/Object"))
-            throw new IllegalStateException("Cannot set the super class of java/lang/Object.");
-        if (isInterface())
-            throw new IllegalStateException("Cannot set the super class of an interface.");
-        if (superClass != null && superClass.isInterface())
-            throw new IllegalArgumentException("Expected a regular class context (not interface).");
-
+        if (name.equals("java/lang/Object") || isInterface())
+        {
+            if (superClass == null)
+                this.superClass = null;
+            return;
+        }
         this.superClass = superClass == null ? OBJECT_CONTEXT : superClass;
     }
 
@@ -333,6 +510,74 @@ public class ClassContext
         this.outer = outer;
     }
 
+    public Set<ClassContext> getAllInnerClasses()
+    {
+        HashSet<ClassContext> allInners = new HashSet<>();
+        ClassContext top = this;
+        while (top.outer != null)
+            top = top.outer;
+
+        Queue<ClassContext> traverse = new LinkedList<>();
+        while (!traverse.isEmpty())
+        {
+            ClassContext ctx = traverse.poll();
+            for (ClassContext inner : ctx.inners)
+                if (allInners.add(inner))
+                    traverse.add(inner);
+        }
+        return allInners;
+    }
+
+    public String getInnerName()
+    {
+        return innerName;
+    }
+
+    public void setInnerName(String innerName)
+    {
+        this.innerName = innerName;
+    }
+
+    /**
+     * Adds an inner class for this class/interface to implement/extend. Note that this will not refactor any changes
+     * to the inner class context. <em>It is the responsibility of the caller to ensure that the correct values get
+     * pushed to the inner class.</em>
+     * inner class as well.
+     * @param inner the inner class to add.
+     * @return true if this is added, false if not added.
+     */
+    public boolean addInnerClass(ClassContext inner)
+    {
+        Objects.requireNonNull(inner);
+        return inners.add(inner);
+    }
+
+    /**
+     * Removes an inner class from this class/interface. Note that this will not refactor any changes to the inner
+     * class context. <em>It is the responsibility of the caller to ensure that the correct values get pushed to
+     * the inner class.</em>
+     * @param inner the inner class to remove.
+     * @return true if this is removed, false if it is not found.
+     */
+    public boolean removeInnerClass(ClassContext inner)
+    {
+        return inners.remove(inner);
+    }
+
+    public Set<ClassContext> getThisInnerClasses()
+    {
+        return new HashSet<>(inners);
+    }
+
+    /**
+     * Removes all inner classes, if any. This will not refactor any changes to the inner class contextes. <em>It is
+     * the responsibility of the caller to ensure that the correct values get pushed to the inner classes.</em>
+     */
+    public void removeAllInnerClasses()
+    {
+        inners.clear();
+    }
+
     /**
      * Adds an interface for this class/interface to implement/extend.
      * @param itrf the interface to add.
@@ -342,8 +587,6 @@ public class ClassContext
     public boolean addInterface(ClassContext itrf)
     {
         Objects.requireNonNull(itrf);
-        if (!itrf.isInterface())
-            throw new IllegalArgumentException("Expected an interface.");
         return interfaces.add(itrf);
     }
 
@@ -381,10 +624,7 @@ public class ClassContext
     public MethodContext addMethod(int modifiers, String name, TypeSignature signature)
     {
         MethodContext mth = new MethodContext(this, modifiers, name, signature);
-        if (methods.putIfAbsent(mth, mth) == null)
-            return mth;
-        else
-            return null;
+        return members.add(mth) ? mth : null;
     }
 
     /**
@@ -394,7 +634,7 @@ public class ClassContext
      */
     public boolean removeMethod(MethodContext mth)
     {
-        return methods.remove(mth) != null;
+        return members.remove(mth);
     }
 
     /**
@@ -406,7 +646,7 @@ public class ClassContext
      */
     public MethodContext findMethod(String name, TypeSignature signature)
     {
-        return methods.get(new MethodContext(this, 0, name, signature));
+        return members.search(new MethodContext(this, 0, name, signature));
     }
 
     /**
@@ -445,25 +685,35 @@ public class ClassContext
         MethodContext test = new MethodContext(this, mth.getModifiers(), newName, newSignature);
         if (test.equals(mth))
             return false;
-        if (methods.containsKey(test))
+        if (members.contains(test))
             return false;
-        methods.remove(mth);
+
+        int slot = members.indexOf(mth);
+        members.set(slot, test);
         mth.renameTo(test);
-        methods.put(mth, mth);
+        members.set(slot, mth);
         return true;
     }
 
-    public Set<MethodContext> getMethods()
+    public List<MethodContext> getMethods()
     {
-        return new HashSet<>(methods.keySet());
+        ArrayList<MethodContext> methods = new ArrayList<>(members.size());
+        for (MemberContext m : members)
+        {
+            if (m instanceof MethodContext)
+                methods.add((MethodContext)m);
+        }
+        return methods;
     }
 
     /**
-     * Removes all methods, if any.
+     * Swaps the position of two methods.
+     * @param a index of method a.
+     * @param b index of method b.
      */
-    public void removeAllMethods()
+    public void swapMethods(int a, int b)
     {
-        methods.clear();
+        members.swap(a, b);
     }
 
     /**
@@ -477,10 +727,7 @@ public class ClassContext
     public FieldContext addField(int modifiers, String name, TypeSignature signature)
     {
         FieldContext fld = new FieldContext(this, modifiers, name, signature);
-        if (fields.putIfAbsent(fld, fld) == null)
-            return fld;
-        else
-            return null;
+        return members.add(fld) ? fld : null;
     }
 
     /**
@@ -490,7 +737,7 @@ public class ClassContext
      */
     public boolean removeField(FieldContext fld)
     {
-        return fields.remove(fld) != null;
+        return members.remove(fld);
     }
 
     /**
@@ -501,7 +748,7 @@ public class ClassContext
      */
     public FieldContext findField(String name)
     {
-        return fields.get(new FieldContext(this, 0, name, TypeSignature.BOOLEAN_TYPE));
+        return members.search(new FieldContext(this, 0, name, TypeSignature.BOOLEAN_TYPE));
     }
 
     /**
@@ -538,25 +785,38 @@ public class ClassContext
         FieldContext test = new FieldContext(this, fld.getModifiers(), newName, newSignature);
         if (test.equals(fld))
             return false;
-        if (fields.containsKey(test))
+        if (members.contains(test))
             return false;
-        fields.remove(fld);
+
+        int slot = members.indexOf(fld);
+        members.set(slot, test);
         fld.renameTo(test);
-        fields.put(fld, fld);
+        members.set(slot, fld);
         return true;
     }
 
-    public Set<FieldContext> getFields()
+    public List<FieldContext> getFields()
     {
-        return new HashSet<>(fields.keySet());
+        ArrayList<FieldContext> fields = new ArrayList<>(members.size());
+        for (MemberContext m : members)
+        {
+            if (m instanceof FieldContext)
+                fields.add((FieldContext)m);
+        }
+        return fields;
+    }
+
+    public List<MemberContext> getMembers()
+    {
+        return new ArrayList<>(members);
     }
 
     /**
-     * Removes all fields, if any.
+     * Removes all the field and method members this class may have.
      */
-    public void removeAllFields()
+    public void removeAllMembers()
     {
-        fields.clear();
+        members.clear();
     }
 
     /**
@@ -656,6 +916,60 @@ public class ClassContext
     }
 
     /**
+     * Writes the class context into the respective class visitor. Note that some data may be loss from an existing
+     * class, specifically, all DEBUG information will be lost. Furthermore, this will default to saving at version 8
+     * @param writer the class visitor to write to.
+     */
+    public void writeClass(ClassVisitor writer)
+    {
+        writeClass(writer, Opcodes.V1_8);
+    }
+
+    /**
+     * Writes the class context into the respective class visitor. Note that some data may be loss from an existing
+     * class, specifically, all DEBUG information will be lost. This variant of writeClass will allow forcing a
+     * particular class version. However, it is up to the client to make sure that this class is actually compliant
+     * with that version number.
+     * @param writer the class visitor to write to.
+     * @param forceVersion the version number to force.
+     */
+    public void writeClass(ClassVisitor writer, int forceVersion)
+    {
+        String[] sItrf = interfaces.parallelStream().map(ClassContext::getName).toArray(String[]::new);
+        writer.visit(forceVersion, modifiers, name, null, superClass == null ?
+                "java/lang/Object" : superClass.name, sItrf);
+
+        //TODO: annotations
+        if (outer != null)
+            writer.visitOuterClass(outer.name, outerMethod.getName(), outerMethod.getSignature().toString());
+        for (ClassContext ctx : getAllInnerClasses())
+            writer.visitInnerClass(ctx.name, outerMethod != null ? null : ctx.outer.name, ctx.innerName, ctx.modifiers);
+
+        for (MemberContext mem : members)
+        {
+            if (mem instanceof MethodContext)
+            {
+                MethodContext mth = (MethodContext)mem;
+                MethodVisitor mthVisitor = writer.visitMethod(mem.getModifiers(), mem.getName(),
+                        mem.getSignature().toString(), null,
+                        mth.getExceptions().parallelStream().map(ClassContext::getName).toArray(String[]::new));
+                if (mthVisitor != null)
+                    mth.readBody(mthVisitor);
+            }
+            else
+            {
+                FieldContext fld = (FieldContext)mem;
+                FieldVisitor fldVisitor = writer.visitField(mem.getModifiers(), mem.getName(),
+                        mem.getSignature().toString(), null, fld.getDefaultValue());
+                if (fldVisitor != null)
+                    fldVisitor.visitEnd();
+            }
+        }
+
+        writer.visitEnd();
+    }
+
+    /**
      * Tests whether if this class can access the other class context.
      * @param other other class to test against
      * @return true if accessible, false if inaccessible.
@@ -743,5 +1057,11 @@ public class ClassContext
         int otherPathInd = other.name.lastIndexOf('/');
         return thisPathInd == otherPathInd && name.substring(0, thisPathInd).equals(other.name.substring(0,
                 otherPathInd));
+    }
+
+    @Override
+    public String toString()
+    {
+         return name;
     }
 }

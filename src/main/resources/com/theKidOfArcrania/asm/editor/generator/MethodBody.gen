@@ -1,0 +1,27 @@
+package com.theKidOfArcrania.asm.editor.context;
+
+import java.util.ArrayList;
+import org.objectweb.asm.MethodVisitor;
+
+class MethodBody extends MethodVisitor {
+    private static class Action {
+        private int method;
+        private Object[] args;
+
+        public Action(int method, Object[] args) {
+            this.method = method;
+            this.args = args;
+        }
+    }
+
+    private final ArrayList<Action> actions = new ArrayList<>();
+
+    private boolean fixed;
+
+    public MethodBody() {
+        super(Opcodes.ASM5);
+    }
+
+    //WARNING: THE FOLLOWING LINES IS GENERATED. DO NOT MODIFY!
+    <GENCODE>
+}

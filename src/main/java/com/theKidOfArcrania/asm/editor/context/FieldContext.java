@@ -9,6 +9,8 @@ import java.lang.reflect.Modifier;
 public class FieldContext extends MemberContext
 {
 
+    private Object defaultValue;
+
     /**
      * Constructs a field context. This should only be internally called by {@link ClassContext}.
      * @param owner the class context that contains the field
@@ -36,5 +38,15 @@ public class FieldContext extends MemberContext
     {
         this.name = mold.name;
         this.signature = mold.signature;
+    }
+
+    public Object getDefaultValue()
+    {
+        return defaultValue;
+    }
+
+    public void setDefaultValue(Object defaultValue)
+    {
+        this.defaultValue = defaultValue;
     }
 }

@@ -3,7 +3,6 @@ package com.theKidOfArcrania.asm.editor.context;
 
 import org.objectweb.asm.MethodVisitor;
 
-import java.lang.reflect.Modifier;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -29,8 +28,6 @@ public class MethodContext extends MemberContext
     MethodContext(ClassContext owner, int modifiers, String name, TypeSignature signature)
     {
         super(owner, modifiers, name, signature);
-        if ((~Modifier.methodModifiers() & modifiers) != 0)
-            throw new IllegalArgumentException("Illegal modifier flag(s).");
         if (signature.getSort() != TypeSort.METHOD)
             throw new IllegalArgumentException("Expected a METHOD type signature.");
         exceptions = new HashSet<>();

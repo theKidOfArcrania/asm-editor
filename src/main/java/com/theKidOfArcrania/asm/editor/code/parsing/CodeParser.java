@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 
 import static com.theKidOfArcrania.asm.editor.code.parsing.Range.characterRange;
+import static com.theKidOfArcrania.asm.editor.code.parsing.Range.lineRange;
 import static com.theKidOfArcrania.asm.editor.code.parsing.Range.tokenRange;
 
 /**
@@ -139,9 +140,8 @@ public class CodeParser
                 }
                 catch (RuntimeException e)
                 {
-                    //Better error logging.
-                    reader.error("Error occurred while parsing line: " + e.toString() + ".",
-                            Range.tokenRange(i + 1, 0, reader.getLine().length()));
+                    //TODO: Better error logging.
+                    reader.error("Error occurred while parsing line: " + e.toString() + ".", lineRange(reader));
                     e.printStackTrace();
                     success = false;
                 }
@@ -159,7 +159,9 @@ public class CodeParser
      */
     public boolean resolveSymbols()
     {
-        boolean success = true;
+        boolean success = resolveLabels();
+
+        //Invoke resolve symbols
         for (int i = 0; i < parsedCode.size(); i++)
         {
             CodeStatement s = parsedCode.get(i);
@@ -169,6 +171,52 @@ public class CodeParser
                 success &= s.resolveSymbols();
             }
         }
+
+        return success;
+    }
+
+    /**
+     * This resolves all the labels within the code. This will also map the labels to their associated statement.
+     * @return true if successful, false if failed.
+     */
+    private boolean resolveLabels()
+    {
+        boolean success = true;
+
+        int line = 0;
+        CodeSymbols symbols = reader.getResolvedSymbols();
+
+        int lblLine = 0;
+        LabelStatement lbl = null;
+        for (CodeStatement statement : parsedCode)
+        {
+            line++;
+            if (statement instanceof LabelStatement)
+            {
+                LabelStatement l = (LabelStatement)statement;
+                if (!l.resolveSymbols())
+                {
+                    success = false;
+                    continue;
+                }
+                lblLine = line;
+                if (lbl == null)
+                    lbl = l;
+                else
+                    reader.warning("Consecutive labels. Second label is ignored.", lineRange(reader, line));
+            }
+            else if (statement instanceof InstStatement)
+            {
+                InstStatement inst = (InstStatement)statement;
+                if (lbl != null)
+                {
+                    symbols.mapStatement(lbl.getSymbol(), inst);
+                    lbl = null;
+                }
+            }
+        }
+        if (lbl != null)
+            reader.warning("Dangling label points to no valid instruction.", lineRange(reader, lblLine));
         return success;
     }
 
@@ -282,5 +330,10 @@ public class CodeParser
         int commentStart = reader.getCommentStartIndex();
         if (commentStart != -1)
             highlighter.insertSyntax(new Syntax(SyntaxType.COMMENT,  tokenRange(reader.getLineNumber(), commentStart, len)));
+    }
+
+    private void verifyStack()
+    {
+
     }
 }

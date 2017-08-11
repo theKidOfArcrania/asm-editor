@@ -4,6 +4,7 @@ package com.theKidOfArcrania.asm.editor.context;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.theKidOfArcrania.asm.editor.context.ClassContext.findContext;
 import static com.theKidOfArcrania.asm.editor.context.TypeSort.*;
 
 /**
@@ -27,24 +28,110 @@ public class TypeSignature
     private static final EnumMap<TypeSort, TypeSignature> primTypes;
     private static final Map<Class<?>, TypeSignature> primClasses;
 
+    private static final Map<TypeSignature, TypeSignature> toUnwrap;
+    private static final Map<TypeSignature, TypeSignature> toWrap;
+
     static {
         primTypes = new EnumMap<>(TypeSort.class);
-        TypeSignature types[] = {BOOLEAN_TYPE, BYTE_TYPE, CHAR_TYPE, DOUBLE_TYPE, FLOAT_TYPE, INTEGER_TYPE,
+        TypeSignature typeSigs[] = {BOOLEAN_TYPE, BYTE_TYPE, CHAR_TYPE, DOUBLE_TYPE, FLOAT_TYPE, INTEGER_TYPE,
                 LONG_TYPE, SHORT_TYPE, VOID_TYPE};
-        for (TypeSignature sig : types)
+        Class<?>[] wrappers = {Boolean.class, Byte.class, Character.class, Double.class, Float.class, Integer.class,
+                Long.class, Short.class, Void.class};
+        Class<?>[] types = {boolean.class, byte.class, char.class, double.class, float.class, int.class, long.class,
+                short.class, void.class};
+
+        for (TypeSignature sig : typeSigs)
             primTypes.put(sig.getSort(), sig);
 
         primClasses = new HashMap<>();
-        primClasses.put(boolean.class, BOOLEAN_TYPE);
-        primClasses.put(byte.class, BYTE_TYPE);
-        primClasses.put(char.class, CHAR_TYPE);
-        primClasses.put(double.class, DOUBLE_TYPE);
-        primClasses.put(float.class, FLOAT_TYPE);
-        primClasses.put(int.class, INTEGER_TYPE);
-        primClasses.put(long.class, LONG_TYPE);
-        primClasses.put(short.class, SHORT_TYPE);
-        primClasses.put(void.class, VOID_TYPE);
+        toUnwrap = new HashMap<>();
+        toWrap = new HashMap<>();
+        for (int i = 0; i < types.length; i++)
+        {
+            primClasses.put(types[i], typeSigs[i]);
+            toUnwrap.put(fromClass(wrappers[i]), typeSigs[i]);
+            toWrap.put(typeSigs[i], fromClass(wrappers[i]));
+        }
+    }
 
+    /**
+     * Checks whether if the second type signature will fit, in other words can be assigned to the first type signature.
+     * @param assignee the type signature to test assigning to
+     * @param value the type signature of the value
+     * @return true if assignment will work, false if it will fail.
+     */
+    public static boolean isAssignable(TypeSignature assignee, TypeSignature value)
+    {
+        if (assignee.getSort() == TypeSort.OBJECT && assignee.getClassDescriptor().equals("java/lang/Object"))
+            return true;
+        if (assignee.isWrapper())
+            assignee = assignee.unwrap();
+        if (value.isWrapper())
+            value = value.unwrap();
+        if (assignee.isObject() ^ value.isObject())
+            return false;
+        if (assignee.equals(value))
+            return true;
+
+        if (assignee.isObject())
+        {
+            if (value.getSort() == TypeSort.ARRAY)
+            {
+                if (assignee.getSort() == TypeSort.OBJECT)
+                {
+                    String desc = assignee.getClassDescriptor();
+                    return desc.equals("java/lang/Cloneable") || desc.equals("java/io/Serializable");
+                }
+                if (assignee.getDimensions() != value.getDimensions())
+                    return false;
+                assignee = assignee.getComponentType();
+                value = value.getComponentType();
+
+                if (assignee == value)
+                    return true;
+                if (!assignee.isObject() || !value.isObject())
+                    return false;
+            }
+
+            ClassContext assigneeCtx = findContext(assignee.getClassDescriptor());
+            ClassContext valueCtx = findContext(value.getClassDescriptor());
+            return assigneeCtx.isAssignableFrom(valueCtx);
+        }
+        else
+        {
+            if (assignee.getSort() == CHAR && value.getSort() == BYTE)
+                return false;
+            int a = getWideningIndex(assignee.getSort());
+            int b = getWideningIndex(value.getSort());
+            return a != -1 && b != -1 && a > b;
+        }
+    }
+
+    /**
+     * Obtains an approximate index about the size of the primitive type. Only works for numeric primitive types.
+     * @param sort the type sort to check against.
+     * @return the "widening index".
+     */
+    private static int getWideningIndex(TypeSort sort)
+    {
+        switch (sort)
+        {
+            case DOUBLE:
+                return 5;
+            case FLOAT:
+                return 4;
+            case LONG:
+                return 3;
+            case INTEGER:
+                return 2;
+            case SHORT:
+            case CHAR:
+                return 1;
+            case BYTE:
+                return 0;
+            default:
+                return -1;
+        }
     }
 
     /**
@@ -147,6 +234,7 @@ public class TypeSignature
 
     //Array-types
     private TypeSignature elem;
+    private TypeSignature comp;
     private int dim;
 
     //Object-types
@@ -169,14 +257,15 @@ public class TypeSignature
 
     /**
      * Constructor for array type signatures.
-     * @param elem the tye of the elements for this array type.
+     * @param comp the basic component type for this array type.
      * @param dim the number of dimensions
      */
-    private TypeSignature(TypeSignature elem, int dim)
+    private TypeSignature(TypeSignature comp, int dim)
     {
         sort = ARRAY;
-        this.elem = elem;
+        this.comp = comp;
         this.dim = dim;
+        this.elem = dim == 1 ? comp : new TypeSignature(comp, dim - 1);
     }
 
     /**
@@ -201,6 +290,25 @@ public class TypeSignature
         this.returnType = returnType;
     }
 
+    public boolean isPrimitive()
+    {
+        return !isObject() && sort != TypeSort.METHOD;
+    }
+
+    public boolean isWrapper()
+    {
+        return toUnwrap.containsKey(this);
+    }
+
+    /**
+     * Tests whether if this type signature is an object.
+     * @return true if this type signature is an object/array, false if it is not.
+     */
+    public boolean isObject()
+    {
+        return sort == TypeSort.OBJECT || sort == TypeSort.ARRAY;
+    }
+
     public TypeSort getSort()
     {
         return sort;
@@ -211,6 +319,14 @@ public class TypeSignature
         if (sort != ARRAY)
             throw new IllegalStateException("Not an array type.");
         return elem;
+
+    }
+
+    public TypeSignature getComponentType()
+    {
+        if (sort != ARRAY)
+            throw new IllegalStateException("Not an array type.");
+        return comp;
     }
 
     public int getDimensions()
@@ -247,9 +363,9 @@ public class TypeSignature
         switch (getSort())
         {
             case ARRAY:
-                return getElementType().getUnresolvedClassSymbols();
+                return getComponentType().getUnresolvedClassSymbols();
             case OBJECT:
-                return ClassContext.findContext(getClassDescriptor()) == null ? getClassDescriptor() : null;
+                return findContext(getClassDescriptor()) == null ? getClassDescriptor() : null;
             case METHOD:
                 TreeSet<String> unresolved = new TreeSet<>();
                 String tmp = getReturnType().getUnresolvedClassSymbols();
@@ -269,6 +385,31 @@ public class TypeSignature
         }
     }
 
+    /**
+     * Unwraps this wrapper type.
+     * @return the type signature representing the primitive type.
+     * @throws IllegalStateException if this is not a wrapper type.
+     */
+    public TypeSignature unwrap()
+    {
+        TypeSignature sig = toUnwrap.get(this);
+        if (sig == null)
+            throw new IllegalStateException("Not a wrapper type.");
+        return sig;
+    }
+
+    /**
+     * Wraps this primitive type.
+     * @return the type signature representing the wrapper type.
+     * @throws IllegalStateException if this is not a primitive type.
+     */
+    public TypeSignature wrap()
+    {
+        if (!isPrimitive())
+            throw new IllegalStateException("Not a primitive type.");
+        return toWrap.get(this);
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -281,7 +422,7 @@ public class TypeSignature
         switch (sort)
         {
             case ARRAY:
-                return dim == that.dim && elem.equals(that.elem);
+                return dim == that.dim && comp.equals(that.comp);
             case OBJECT:
                 return classDescriptor.equals(that.classDescriptor);
             case METHOD:
@@ -298,7 +439,7 @@ public class TypeSignature
         switch (sort)
         {
             case ARRAY:
-                result = 31 * result + elem.hashCode();
+                result = 31 * result + comp.hashCode();
                 result = 31 * result + dim;
                 break;
             case OBJECT:
@@ -317,11 +458,11 @@ public class TypeSignature
         switch (sort)
         {
             case ARRAY:
-                String element = elem.toString();
-                StringBuilder sb = new StringBuilder(dim + element.length());
+                String component = comp.toString();
+                StringBuilder sb = new StringBuilder(dim + component.length());
                 for (int i = 0; i < dim; i++)
                     sb.append(ARRAY.getMarker());
-                sb.append(element);
+                sb.append(component);
                 return sb.toString();
             case OBJECT:
                 return "L" + classDescriptor + ";";

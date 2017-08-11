@@ -33,6 +33,28 @@ public class Range
     }
 
     /**
+     * Obtains an entire line range that the reader is currently on.
+     * @param reader the token reader
+     * @return the specified range.
+     */
+    public static Range lineRange(CodeTokenReader reader)
+    {
+
+        return tokenRange(reader.getLineNumber(), 0, reader.getLine().length());
+    }
+
+    /**
+     * Obtains an entire line range.
+     * @param reader the token reader
+     * @param lineNum the line number
+     * @return the specified range.
+     */
+    public static Range lineRange(CodeTokenReader reader, int lineNum)
+    {
+        return new Range(lineNum, 0, lineNum, reader.getLine(lineNum).length());
+    }
+
+    /**
      * Obtains a range of a token with the specified start and end index. This can only be used to select a token on
      * one single line.
      * @param lineNum the line number
@@ -77,4 +99,6 @@ public class Range
     {
         return end;
     }
+
+
 }

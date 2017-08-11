@@ -48,7 +48,7 @@ public class TypeSignatureTest
     {
         TypeSignature sig = checkParse("[[[B");
         assertEquals(sig.getDimensions(), 3);
-        assertEquals(TypeSignature.BYTE_TYPE, sig.getElementType());
+        assertEquals(TypeSignature.BYTE_TYPE, sig.getComponentType());
     }
 
     @Test

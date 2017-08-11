@@ -53,13 +53,14 @@ public class InstStatementTest
                 {InstOpcodes.INST_BIPUSH, "BIPUSH -129", "value", 1},
                 {InstOpcodes.INST_NEWARRAY, "NEWARRAY T_BOOLEAN", "", 0},
                 {InstOpcodes.INST_NEWARRAY, "NEWARRAY T_NOTYPE", "expected", 1},
-                {InstOpcodes.INST_INVOKEDYNAMIC, "INVOKEDYNAMIC foo, @(III)V, &handle1, 536, 5566L, .66F, .35, @(II)" +
+                {InstOpcodes.INST_INVOKEDYNAMIC, "INVOKEDYNAMIC foo, @(III)V, &bsm, 536, 5566L, .66F, .35, @(II)" +
                         "V, \"Something\", &handle1, @Ljava/lang/Class;", "", 0},
                 {InstOpcodes.INST_GOTO, "GOTO label1", "", 0},
                 {InstOpcodes.INST_LDC, "LDC \"ANOTHERSTRING\"", "", 0},
                 {InstOpcodes.INST_LOOKUPSWITCH, "LOOKUPSWITCH label1, 1, label1, 2, label1, 3, label1, 100, label1", "", 0},
                 {InstOpcodes.INST_TABLESWITCH, "TABLESWITCH 1, 5, label1, label1, label1, label1, label1, label1", "", 0},
-                {InstOpcodes.INST_NEW, "NEW java/lang/Math", "", 0},
+                {InstOpcodes.INST_NEW, "NEW @Ljava/lang/Math;", "", 0},
+                {InstOpcodes.INST_NEW, "NEW @[Ljava/lang/Math;", "object", 1},
                 {InstOpcodes.INST_INVOKEVIRTUAL, "INVOKEVIRTUAL java/lang/Math, sin, @(D)D", "", 0},
                 {InstOpcodes.INST_INVOKEVIRTUAL, "INVOKEVIRTUAL java/lang/Object, <init>, @()V", "", 0},
                 {InstOpcodes.INST_INVOKEVIRTUAL, "INVOKEVIRTUAL java/lang/Math, sinh, @V", "expected", 1},
@@ -74,10 +75,6 @@ public class InstStatementTest
                 {InstOpcodes.INST_IOR, "IOR", "", 0},
                 {InstOpcodes.INST_IOR, "IOR blah", "end of statement", 1}
         };
-    }
-
-    public static class FoundException extends RuntimeException {
-
     }
 
     private CodeSymbols global;
@@ -104,7 +101,11 @@ public class InstStatementTest
     public void setup()
     {
         global = new CodeSymbols(null, classContext);
-        global.addHandle("handle1", new Handle(Opcodes.H_GETFIELD, "owner", "name", "desc", true));
+        global.addHandle("handle1", new Handle(Opcodes.H_GETFIELD, "owner", "name", "()V", true));
+        global.addHandle("bsm", new Handle(Opcodes.H_INVOKESTATIC, "owner", "name2",
+                "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;JJ" +
+                        "Ljava/lang/Float;Ljava/lang/Object;Ljava/lang/invoke/MethodType;Ljava/lang/String;" +
+                        "Ljava/lang/invoke/MethodHandle;Ljava/lang/Class;)Ljava/lang/invoke/CallSite;", true));
 
         reader = new CodeTokenReader(global, mthContext, code);
         reader.getResolvedSymbols().addLabel("label1", new Label());
@@ -134,7 +135,7 @@ public class InstStatementTest
         assertLogError(1, this::parseStatement);
         if (parsed != null)
         {
-            assertEquals(opcode.getOpcode(), parsed.getOpcode());
+            assertEquals(opcode.getNumber(), parsed.getOpcodeNum());
             assertEquals(opcode.getInstSpec(), parsed.getSpec());
         }
     }

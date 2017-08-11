@@ -1,7 +1,5 @@
 package com.theKidOfArcrania.asm.editor.context;
 
-import java.lang.reflect.Modifier;
-
 /**
  * Embodies a context used to identify a field contained within a {@link ClassContext}.
  * @author Henry Wang
@@ -23,8 +21,6 @@ public class FieldContext extends MemberContext
     FieldContext(ClassContext owner, int modifiers, String name, TypeSignature signature)
     {
         super(owner, modifiers, name, signature);
-        if ((~Modifier.fieldModifiers() & modifiers) != 0)
-            throw new IllegalArgumentException("Illegal modifier flag(s).");
         if (signature.getSort() == TypeSort.METHOD || signature.getSort() == TypeSort.VOID)
             throw new IllegalArgumentException("Expected a field type signature.");
     }

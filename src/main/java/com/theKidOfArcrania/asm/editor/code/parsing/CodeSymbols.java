@@ -5,6 +5,7 @@ import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;
 
 import java.util.HashMap;
+import java.util.Objects;
 
 /**
  * Represents all the symbols of a particular piece of code.
@@ -16,7 +17,8 @@ public class CodeSymbols
     private final ClassContext thisCtx;
     private final HashMap<String, Label> labels;
     private final HashMap<String, Handle> handles;
-
+    private final HashMap<InstStatement, Label> mappedLabels;
+    private final HashMap<Label, InstStatement> mappedStatements;
 
     /**
      * Constructs a new code symbol table.
@@ -29,6 +31,8 @@ public class CodeSymbols
         this.thisCtx = thisCtx;
         this.labels = new HashMap<>();
         this.handles = new HashMap<>();
+        this.mappedLabels = new HashMap<>();
+        this.mappedStatements = new HashMap<>();
     }
 
     /**
@@ -39,6 +43,8 @@ public class CodeSymbols
      */
     public boolean addLabel(String name, Label lbl)
     {
+        Objects.requireNonNull(lbl);
+        Objects.requireNonNull(name);
         return labels.putIfAbsent(name, lbl) == null;
     }
 
@@ -50,6 +56,8 @@ public class CodeSymbols
      */
     public boolean addHandle(String name, Handle parsed)
     {
+        Objects.requireNonNull(name);
+        Objects.requireNonNull(parsed);
         return handles.putIfAbsent(name, parsed) == null;
     }
 
@@ -103,13 +111,29 @@ public class CodeSymbols
     }
 
     /**
-     * Removes a named label.
+     * Removes a named label. This also removes its associated mapping to the instruction statement (if any).
      * @param name the name of the label.
      * @return true if removed, false if nothing happened.
      */
     public boolean removeLabel(String name)
     {
-        return labels.remove(name) != null;
+        Label removed = labels.remove(name);
+        if (mappedStatements.containsKey(removed))
+            mappedLabels.remove(mappedStatements.remove(removed));
+        return removed != null;
+    }
+
+    /**
+     * Determines whether if this label is anonymous. This label is anonymous if it is not in the named labels list.
+     * This is typically the case when {@link #findStatementLabel(InstStatement)} is called with no label attached to
+     * statement. If this label is not mapped to any statement, this will also return <code>false</code>,
+     *
+     * @param lbl the label to check.
+     * @return true if anonymous, false if not.
+     */
+    public boolean isAnonymousLabel(Label lbl)
+    {
+       return mappedStatements.containsKey(lbl) && !labels.containsValue(lbl);
     }
 
     /**
@@ -121,5 +145,50 @@ public class CodeSymbols
     public boolean removeHandle(String name)
     {
         return handles.remove(name) != null;
+    }
+
+    /**
+     * Maps a statement to a label. If the label is currently mapped to another statement, that mapping will be removed.
+     * @param lbl the label to associate with the statement.
+     * @param inst the instruction statement.
+     */
+    public void mapStatement(Label lbl, InstStatement inst)
+    {
+        InstStatement prev = mappedStatements.put(lbl, inst);
+        if (prev != null)
+            mappedLabels.remove(prev);
+    }
+
+    /**
+     * Finds the associated label with this statement if any. If not found, this will create a new anonymous
+     * (unnamed) label.
+     * @param inst the instruction statement to loop up.
+     * @return the associated label.
+     */
+    public Label findStatementLabel(InstStatement inst)
+    {
+        return mappedLabels.computeIfAbsent(inst, key -> new Label());
+    }
+
+    /**
+     * Finds a statement from it's associated label. If no statement is associated with this label, this will return
+     * <code>null</code>.
+     * @param lbl the label to search up.
+     * @return the associated statement, if any.
+     */
+    public InstStatement findStatement(Label lbl)
+    {
+        return mappedStatements.get(lbl);
+    }
+
+    /**
+     * Removes a currently mapped instruction statement
+     * @param inst the instruction statement to remove.
+     */
+    public void removeMappedStatement(InstStatement inst)
+    {
+        Label removed = mappedLabels.remove(inst);
+        if (removed != null)
+            mappedStatements.remove(removed);
     }
 }

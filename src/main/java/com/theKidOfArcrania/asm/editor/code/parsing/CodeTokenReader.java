@@ -1,7 +1,7 @@
 package com.theKidOfArcrania.asm.editor.code.parsing;
 
 import com.theKidOfArcrania.asm.editor.context.MethodContext;
-import com.theKidOfArcrania.asm.editor.context.TypeSignature;
+import com.theKidOfArcrania.asm.editor.util.FallibleFunction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -78,6 +78,16 @@ public class CodeTokenReader
 
         prevTokens = new ArrayList<>();
         resetLine();
+    }
+
+    /**
+     * Obtains line at the particular line number
+     * @param lineNum line number.
+     * @return the line string.
+     */
+    public String getLine(int lineNum)
+    {
+        return lines.get(lineNum);
     }
 
     public String getLine()
@@ -569,7 +579,7 @@ public class CodeTokenReader
         }
         tokenVal = FallibleFunction.tryOptional(parsing, str).orElse(null);
         if (tokenVal == null)
-            error("Invalid number.", Range.tokenRange(lineNum, tokenStartIndex, tokenEndIndex));
+            error("Invalid number.", tokenRange(lineNum, tokenStartIndex, tokenEndIndex));
     }
 
     /**

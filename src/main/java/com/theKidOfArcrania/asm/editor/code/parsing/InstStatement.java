@@ -2,8 +2,11 @@ package com.theKidOfArcrania.asm.editor.code.parsing;
 
 import com.theKidOfArcrania.asm.editor.code.parsing.inst.InstOpcodes;
 import com.theKidOfArcrania.asm.editor.code.parsing.inst.InstSpec;
+import com.theKidOfArcrania.asm.editor.context.TypeSignature;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 
+import static com.theKidOfArcrania.asm.editor.code.parsing.Range.lineRange;
 import static com.theKidOfArcrania.asm.editor.code.parsing.Range.tokenRange;
 
 /**
@@ -12,13 +15,6 @@ import static com.theKidOfArcrania.asm.editor.code.parsing.Range.tokenRange;
  */
 public class InstStatement extends CodeStatement
 {
-    private final CodeTokenReader reader;
-    private final ErrorLogger delegateLogger;
-
-    private final InstSpec spec;
-    private final int opcode;
-    private final Argument[] args;
-
     /**
      * Reads in an instruction statement and parses it. The associated token-reader should be primed to the first token
      * (the instruction word) of that line. If an error occurred while parsing this instruction, this will return null.
@@ -31,7 +27,7 @@ public class InstStatement extends CodeStatement
         InstOpcodes opcode = InstOpcodes.fetchOpcode(instName);
         if (opcode == null)
         {
-            reader.error("Invalid instruction name.", tokenRange(reader.getLineNumber(), 0, reader.getLine().length()));
+            reader.error("Invalid instruction name.", lineRange(reader));
             return null;
         }
 
@@ -44,16 +40,25 @@ public class InstStatement extends CodeStatement
         if (reader.nextToken(true))
         {
             Position start = reader.getTokenPos().getStart();
-            reader.error("Expected end of statement.", tokenRange(start.getLineNumber(), end, reader.getLine()
-                    .length()));
+            reader.error("Expected end of statement.", tokenRange(start.getLineNumber(), end,
+                    reader.getLine().length()));
             return null;
         }
 
-        InstStatement inst = new InstStatement(reader, instSpec, opcode.getOpcode(), args);
+        InstStatement inst = new InstStatement(reader, instSpec, opcode, args);
         if (!instSpec.verifyParse(inst.delegateLogger, inst))
             return null;
         return inst;
     }
+
+    private final CodeTokenReader reader;
+    private final ErrorLogger delegateLogger;
+
+    private final InstSpec spec;
+    private final InstOpcodes opcode;
+    private final Argument[] args;
+
+    private final Range lineRange;
 
     /**
      * Constructs a new instruction.
@@ -62,8 +67,9 @@ public class InstStatement extends CodeStatement
      * @param opcode the opcode of this instruction
      * @param args the list of arguments.
      */
-    private InstStatement(CodeTokenReader reader, InstSpec spec, int opcode, Argument[] args)
+    private InstStatement(CodeTokenReader reader, InstSpec spec, InstOpcodes opcode, Argument[] args)
     {
+        this.lineRange = lineRange(reader);
         this.reader = reader;
         this.spec = spec;
         this.opcode = opcode;
@@ -85,14 +91,42 @@ public class InstStatement extends CodeStatement
         };
     }
 
+    public CodeSymbols getResolvedSymbols()
+    {
+        return reader.getResolvedSymbols();
+    }
+
     public InstSpec getSpec()
     {
         return spec;
     }
 
-    public int getOpcode()
+    public InstOpcodes getOpcode()
     {
         return opcode;
+    }
+
+    public int getOpcodeNum()
+    {
+        return opcode.getNumber();
+    }
+
+    public TypeSignature getArgTypeSig(int arg)
+    {
+        String sig;
+        switch ((BasicParamType)getArgExactType(arg))
+        {
+            case INTEGER: sig = "I"; break;
+            case LONG: sig = "J"; break;
+            case FLOAT: sig = "F"; break;
+            case DOUBLE: sig = "D"; break;
+            case STRING: sig = "Ljava/lang/String;"; break;
+            case METHOD_SIGNATURE: sig = "Ljava/lang/invoke/MethodType;"; break;
+            case FIELD_SIGNATURE: sig = "Ljava/lang/Class;"; break;
+            case METHOD_HANDLE: sig = "Ljava/lang/invoke/MethodHandle;"; break;
+            default: throw new IllegalArgumentException();
+        }
+        return TypeSignature.parseTypeSig(sig);
     }
 
     /**
@@ -173,6 +207,11 @@ public class InstStatement extends CodeStatement
         return args.length;
     }
 
+    public Range getLineRange()
+    {
+        return lineRange;
+    }
+
     @Override
     public boolean resolveSymbols()
     {
@@ -182,17 +221,16 @@ public class InstStatement extends CodeStatement
     @Override
     public void write(MethodVisitor writer)
     {
-        getSpec().write(writer, this, reader.getResolvedSymbols());
+        CodeSymbols symbols = reader.getResolvedSymbols();
+        Label lbl = symbols.findStatementLabel(this);
+        if (symbols.isAnonymousLabel(lbl))
+            writer.visitLabel(lbl);
+        getSpec().write(writer, this, symbols);
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * This does nothing since there are no side effects while parsing an instruction.
-     */
     @Override
     public void reset()
     {
-        //Does nothing because there are no side-effects.
+        reader.getResolvedSymbols().removeMappedStatement(this);
     }
 }

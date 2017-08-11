@@ -21,23 +21,26 @@ public class LabelStatement extends CodeStatement
     {
         if (reader.hasTokenError() || reader.getTokenType() != TokenType.LABEL)
             throw new IllegalStateException();
-        return new LabelStatement(reader, (String)reader.getTokenValue());
+        return new LabelStatement(reader, (String)reader.getTokenValue(), reader.getTokenPos());
     }
 
     private final CodeTokenReader reader;
     private final String name;
     private final Label symbol;
+    private final Range tokenPos;
 
     /**
      * Constructs a new label from the name and the associated token reader.
      * @param reader the token reader.
      * @param name the name of the label.
+     * @param tokenPos the token position of label.
      */
-    private LabelStatement(CodeTokenReader reader, String name)
+    private LabelStatement(CodeTokenReader reader, String name, Range tokenPos)
     {
         this.reader = reader;
         this.name = name;
         symbol = new Label();
+        this.tokenPos = tokenPos;
     }
 
     @Override
@@ -46,7 +49,7 @@ public class LabelStatement extends CodeStatement
         CodeSymbols resolved = reader.getResolvedSymbols();
         if (resolved.containsLabel(name) && resolved.getLabel(name) != symbol)
         {
-            reader.error("Label '" + name + "' already used.", reader.getTokenPos());
+            reader.error("Label '" + name + "' already used.", tokenPos);
             return false;
         }
         resolved.addLabel(name, symbol);
@@ -65,5 +68,10 @@ public class LabelStatement extends CodeStatement
         CodeSymbols resolved = reader.getResolvedSymbols();
         if (resolved.getLabel(name) == symbol)
             resolved.removeLabel(name);
+    }
+
+    public Label getSymbol()
+    {
+        return symbol;
     }
 }

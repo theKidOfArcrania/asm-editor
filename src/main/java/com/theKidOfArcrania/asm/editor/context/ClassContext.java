@@ -1,6 +1,7 @@
 package com.theKidOfArcrania.asm.editor.context;
 
 
+import com.theKidOfArcrania.asm.editor.util.IndexHashSet;
 import org.objectweb.asm.*;
 
 import java.io.IOException;
@@ -108,8 +109,11 @@ public class ClassContext
         {
             //TODO: implement generics.
             MethodContext mth = ctx.addMethod(access, name, TypeSignature.parseTypeSig(desc));
-            for (String except : exceptions)
-                mth.addException(findContext0(except, true));
+            if (exceptions != null)
+            {
+                for (String except : exceptions)
+                    mth.addException(findContext0(except, true));
+            }
             return mth.writeBody();
         }
 
@@ -178,7 +182,7 @@ public class ClassContext
             catch (IOException e)
             {
                 //e.printStackTrace();
-                System.err.println(name + " failed to load.");
+                //System.err.println(name + " failed to load.");
                 return unresolved ? ctx : null;
             }
         }
@@ -843,12 +847,18 @@ public class ClassContext
     /**
      * Determines whether if the class/interface represented by this class context is the same or the
      * superclass/superinterface of the class/interface represented by the specified class context. This does so
-     * similarity to the {@link Class#isAssignableFrom(Class)}.
+     * similarity to the {@link Class#isAssignableFrom(Class)}. In other words, this method checks whether if an
+     * object of the specified type can be assigned to an object of our type. It is equivalent to this psuedocode:
+     * <code>this is_super_of other</code>
      * @param other the class context to be checked against.
      * @return a boolean value of whether if the above condition is met.
      */
     public boolean isAssignableFrom(ClassContext other)
     {
+        if (this.getName().equals("java/lang/Object"))
+            return true;
+        if (this.equals(other))
+            return true;
         if (this.isInterface())
         {
             HashSet<ClassContext> itrfs = new HashSet<>();

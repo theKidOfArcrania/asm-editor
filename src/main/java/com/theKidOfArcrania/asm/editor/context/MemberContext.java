@@ -52,7 +52,7 @@ public abstract class MemberContext
         this.name = name;
         this.signature = signature;
 
-        if (this instanceof MethodContext && name.equals("<init>"))
+        if (this instanceof MethodContext && (name.equals("<init>") || name.equals("<clinit>")))
             return;
         ensureIdentifier(name);
     }

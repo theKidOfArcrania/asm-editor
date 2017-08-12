@@ -22,6 +22,284 @@ public class StackMapFrame
 {
 
     /**
+     * Interface used to make all the private methods public for testing. Remove this in production.
+     */
+    public static class TestInterface
+    {
+        private final StackMapFrame tester;
+
+        private TestInterface(StackMapFrame tester)
+        {
+            this.tester = tester;
+        }
+
+        public int getMaxStack()
+        {
+            return tester.maxStack;
+        }
+
+        public int getMaxVars()
+        {
+            return tester.maxVars;
+        }
+
+        public FrameElement getVar(int ind)
+        {
+            return tester.localVariables.get(ind);
+        }
+
+        /**
+         * Adds another local variable to the end of the stack.
+         * @return the index of the variable just pushed.
+         */
+        public int pushVar()
+        {
+            return tester.pushVar();
+        }
+
+        /**
+         * Removes the last local variables from the stack. If the last local variable is a double-slot, this will remove
+         * two slots.
+         * @return the index of the last variable just removed.
+         */
+        public int popVar()
+        {
+            return tester.popVar();
+        }
+
+        /**
+         * Executes the specified instruction statement.
+         * @param inst the instruction to execute.
+         * @throws FrameException if the type-check fails.
+         */
+        public void execute(InstStatement inst) throws FrameException
+        {
+            tester.execute(inst);
+        }
+
+        /**
+         * Inserts the implicit object parameter at the beginning of the parameter list.
+         * @param objref the object reference
+         * @param params the explicit parameter list.
+         * @return the full parameter list.
+         */
+        public TypeSignature[] insertObjParam(TypeSignature objref, TypeSignature[] params)
+        {
+            return tester.insertObjParam(objref, params);
+        }
+
+        /**
+         * Obtains a type signature from the associated class descriptor in the instruction. This will always search at
+         * the 0th argument.
+         * @param inst the instruction to search from.
+         * @return the parsed type signature.
+         */
+        public TypeSignature typeSigFromClassDesc(InstStatement inst)
+        {
+            return tester.typeSigFromClassDesc(inst);
+        }
+
+        /**
+         * Parses the type signature from an instruction
+         * @param inst the instruction to parse from.
+         * @param arg the argument number of the instruction
+         * @return the parsed type signature.
+         * @throws IllegalArgumentException if unable to parse type signature.
+         */
+        public TypeSignature parseSig(InstStatement inst, int arg)
+        {
+            return tester.parseSig(inst, arg);
+        }
+
+        /**
+         * Executes an invocation with a particular method type signature (a return value and a series of parameters)
+         * @param ret the return value
+         * @param params the series of parameters.
+         * @throws FrameException if the type-check fails.
+         * @return the actual parameters
+         */
+        public FrameElement[] invokeOps(TypeSignature ret, TypeSignature... params) throws FrameException
+        {
+            return tester.invokeOps(ret, params);
+        }
+
+        /**
+         * Executes an &lt;init&gt; invocation on the operand stack. This will also initialize any references to the
+         * uninitialized object.
+         * @param resolved the code symbols needed to resolve the labels.
+         * @param initCtx the class context of whose &lt;init&gt; method is being called.
+         * @param params the series of parameters (excluding the object reference parameter).
+         * @throws FrameException if the type-check fails.
+         */
+        public void invokeInitOps(CodeSymbols resolved, ClassContext initCtx, TypeSignature... params) throws FrameException
+        {
+            tester.invokeInitOps(resolved, initCtx, params);
+        }
+
+        /**
+         * Finds any matching uninitialized frame elements from the list and initializes them.
+         * @param eles the frame element list
+         * @param resolved the resolved code symbols
+         * @param uninit the uninitialized frame element to look for
+         * @param init the initialized frame element to replace with
+         */
+        public void init(List<FrameElement> eles, CodeSymbols resolved, FrameElement uninit, FrameElement init)
+        {
+            tester.init(eles, resolved, uninit, init);
+        }
+
+        /**
+         * Pops a few operands, then pushes an operand. Note that the order of these operands is in reverse order,
+         * i.e. the last element refers to the first element popped/pushed.
+         * @param push the element to be pushed.
+         * @param pop the expected frame types to be popped.
+         * @return the frame elements popped.
+         * @throws FrameException if the type-check fails.
+         */
+        public FrameElement[] pushElePopOps(FrameElement push, FrameType... pop) throws FrameException
+        {
+            return tester.pushElePopOps(push, pop);
+        }
+
+        /**
+         * Pops a few operands, then pushes an operand. Note that the order of these operands is in reverse order,
+         * i.e. the last element refers to the first element popped/pushed.
+         * @param push the element type to be pushed.
+         * @param pop the expected frame types to be popped.
+         * @return the frame elements popped.
+         * @throws FrameException if the type-check fails.
+         */
+        public FrameElement[] pushPopOps(FrameType push, FrameType... pop) throws FrameException
+        {
+            return tester.pushPopOps(push, pop);
+        }
+
+        /**
+         * Pops the number of frame values from the operation stack without any type verification. Note that this will
+         * return the elements in REVERSE order, i.e. the first element of this array is the last element popped. If
+         * there are less than enough operands left on the operand stack, this will place in TOP frames
+         * @param popCount the number of elements to pop.
+         * @return the popped elements in REVERSE order.
+         */
+        public FrameElement[] popNoCheck(int popCount)
+        {
+            return tester.popNoCheck(popCount);
+        }
+
+        /**
+         * Checks that the stack has the specified number of elements remaining.
+         * @param size the size of the stack to guarantee
+         * @throws FrameException if a stack underflow occurs.
+         */
+        public void checkStackUnderflow(int size) throws FrameException
+        {
+            tester.checkStackUnderflow(size);
+        }
+
+        /**
+         * This will pop an operand with the type specified. This method guarantees that the frame element WILL BE
+         * popped from the operand stack regardless of any errors that might occur.
+         * @param type the type required for frame element.
+         * @return the frame element guaranteed to be of the right type.
+         * @throws FrameException if the type-check fails.
+         */
+        public FrameElement popOp(FrameType type) throws FrameException
+        {
+            return tester.popOp(type);
+        }
+
+        /**
+         * Executes a duplication of an element. If there is enough elements in the stack, this guarantees that the
+         * operation will be performed (even in the event of some errors).
+         * @param dupSize the number of elements to duplicate.
+         * @param spacing the number of elements to separate the duplicate from the original.
+         * @throws FrameException if doing so would clobber 2-block elements or if a stack underflow would occur.
+         */
+        public void dup(int dupSize, int spacing) throws FrameException
+        {
+            tester.dup(dupSize, spacing);
+        }
+
+        /**
+         * This will push the specified frame element to the top of the operand stack.
+         * @param ele the frame element to add.
+         */
+        public void pushOp(FrameElement ele)
+        {
+            tester.pushOp(ele);
+        }
+
+        /**
+         * Checks that the top operand is of the correct type. For special 2 size operands, the top-most MUST be of type
+         * TOP and the second top-most MUST be of the specified type. If any conditions fail, an exception will be thrown.
+         * @param type the frame type required.
+         * @throws FrameException if the type-check fails.
+         */
+        public void checkOpType(FrameType type) throws FrameException
+        {
+            tester.checkOpType(type);
+        }
+
+        /**
+         * Allocates the space for this new variable.
+         * @param index the index of the variable.
+         * @param ele the frame element to allocate with.
+         */
+        public void allocateVar(int index, FrameElement ele)
+        {
+            tester.allocateVar(index, ele);
+        }
+
+        /**
+         * Checks that the variable specified is the right type. For special 2 size operands, the next slot MUST be of type
+         * TOP and the index specified MUST be of the specified type. The specified type must be a queriable type, i.e.
+         * has a value that has a meaningful value, not NULL or TOP. If any conditions fail, an exception will be thrown.
+         * @param index the index of the variable.
+         * @param type the frame type required.
+         * @throws FrameException if the type-check fails.
+         * @throws IllegalArgumentException if the type passed is not a valid queriable type.
+         * @return the frame element representing the variable.
+         */
+        public FrameElement checkVarType(int index, FrameType type) throws FrameException
+        {
+            return tester.checkVarType(index, type);
+        }
+
+        /**
+         * Verifies an array load.
+         * @param type the array element type to test stack for.
+         * @throws FrameException if the type-check fails.
+         * @throws IllegalArgumentException if the type passed is not an array type.
+         */
+        public void checkArrayLoad(TypeSort type) throws FrameException
+        {
+            tester.checkArrayLoad(type);
+        }
+
+        /**
+         * Verifies an array store.
+         * @param type the array element type to test stack for.
+         * @throws FrameException if the type-check fails.
+         * @throws IllegalArgumentException if the type passed is not an array type.
+         */
+        public void checkArrayStore(TypeSort type) throws FrameException
+        {
+            tester.checkArrayStore(type);
+        }
+
+        /**
+         * Obtains the respective frame type from an array type.
+         * @param type the primitive type to look up.
+         * @return the respective frame type.
+         * @throws IllegalArgumentException if the type passed is not an array type.
+         */
+        public FrameType getFrameType(TypeSort type)
+        {
+            return tester.getFrameType(type);
+        }
+    }
+
+    /**
      * Requires the frame element to be non-null.
      * @param ele the frame element to analyze.
      * @return the frame element passed as parameter, if non-null
@@ -716,7 +994,11 @@ public class StackMapFrame
         finally
         {
             if (push != null)
+            {
                 operandStack.push(push);
+                if (push.getType().getSize() == 2)
+                    operandStack.push(new FrameElement(FrameType.TOP, true));
+            }
         }
     }
 
@@ -898,7 +1180,7 @@ public class StackMapFrame
         {
             if (type == FrameType.OBJECT && top.getType() == FrameType.NULL)
                 return;
-            throw new FrameException("Expected: " + type + ".");
+            throw new FrameException("Expected: " + type + ". Actual: " + top.getType());
         }
     }
 
@@ -1010,7 +1292,11 @@ public class StackMapFrame
             throw new FrameException(msg);
 
         if (ftype == FrameType.OBJECT)
+        {
+            if (popped[2].getType() == FrameType.NULL)
+                return;
             checkIsAssignable(sig.getElementType(), popped[2].getRefSig());
+        }
     }
 
     /**

@@ -10,10 +10,8 @@ import com.theKidOfArcrania.asm.editor.code.parsing.Range;
  *
  * @author Henry Wang
  */
-public class Tag
+public class Tag extends HighlightMark<TagType>
 {
-    private final TagType type;
-    private Range span;
     private String tagDescription;
 
     /**
@@ -34,22 +32,11 @@ public class Tag
      */
     public Tag(TagType type, Range span, String tagDescription)
     {
+        super(type, span);
         if (type == null || span == null || tagDescription == null)
             throw new NullPointerException();
 
-        this.type = type;
-        this.span = span;
         this.tagDescription = tagDescription;
-    }
-
-    public TagType getType()
-    {
-        return type;
-    }
-
-    public Range getSpan()
-    {
-        return span;
     }
 
     public String getTagDescription()

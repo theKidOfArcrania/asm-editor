@@ -11,6 +11,11 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Gradle: org.ow2.asm:asm:5.2" level="project" />
     <orderEntry type="library" name="Gradle: org.ow2.asm:asm-commons:5.2" level="project" />
+    <orderEntry type="library" name="Gradle: org.fxmisc.richtext:richtextfx:0.7-M5" level="project" />
     <orderEntry type="library" name="Gradle: org.ow2.asm:asm-tree:5.2" level="project" />
+    <orderEntry type="library" name="Gradle: org.fxmisc.wellbehaved:wellbehavedfx:0.3" level="project" />
+    <orderEntry type="library" name="Gradle: org.fxmisc.undo:undofx:1.2.2" level="project" />
+    <orderEntry type="library" name="Gradle: org.reactfx:reactfx:2.0-M5" level="project" />
+    <orderEntry type="library" name="Gradle: org.fxmisc.flowless:flowless:0.5.2" level="project" />
   </component>
 </module>

@@ -6,5 +6,11 @@ package com.theKidOfArcrania.asm.editor.code.highlight;
  */
 public enum SyntaxType
 {
-    COMMENT, DIRECTIVE, INSTRUCTION, LABEL, COMMA, NUMBER, STRING, SIGNATURE, IDENTIFIER, HANDLE
+    COMMENT, DIRECTIVE, INSTRUCTION, LABEL, COMMA, NUMBER, STRING, SIGNATURE, IDENTIFIER, HANDLE;
+
+    @Override
+    public String toString()
+    {
+        return "syntax-" + super.toString().toLowerCase();
+    }
 }

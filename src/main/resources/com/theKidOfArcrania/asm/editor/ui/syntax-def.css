@@ -1,0 +1,58 @@
+.tag-error
+{
+    -fx-border-color: red;
+    -fx-border-width: 0 0 1 0;
+}
+
+.tag-warning
+{
+    -fx-border-color: yellow;
+    -fx-border-width: 0 0 1 0;
+}
+
+.syntax-comment
+{
+    -fx-fill: green;
+}
+
+.syntax-directive
+{
+    -fx-fill: teal;
+    -fx-font-weight: bold;
+}
+
+.syntax-instruction
+{
+    -fx-fill: darkblue;
+    -fx-font-weight: bold;
+}
+
+.syntax-label
+{
+    -fx-font-weight: bold;
+}
+
+.syntax-number
+{
+    -fx-fill: orange;
+}
+
+.syntax-string
+{
+    -fx-fill: orange;
+}
+
+.syntax-comma
+{
+    -fx-fill: orangered;
+}
+
+.syntax-signature
+{
+    -fx-fill: blue;
+}
+
+.syntax-handle
+{
+    -fx-fill: blue;
+}

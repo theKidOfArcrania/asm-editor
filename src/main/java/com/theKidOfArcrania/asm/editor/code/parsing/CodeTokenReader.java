@@ -87,7 +87,7 @@ public class CodeTokenReader
      */
     public String getLine(int lineNum)
     {
-        return lines.get(lineNum);
+        return lines.get(lineNum - 1);
     }
 
     public String getLine()
@@ -159,7 +159,7 @@ public class CodeTokenReader
             lineNum = 0;
             line = null;
         }
-        lines.remove(num);
+        lines.remove(num - 1);
         if (num < lineNum)
             lineNum--;
     }
@@ -175,7 +175,7 @@ public class CodeTokenReader
     {
         if (lineNum == num)
             resetLine();
-        lines.set(num, line);
+        lines.set(num - 1, line);
     }
 
     /**
@@ -226,7 +226,7 @@ public class CodeTokenReader
      */
     public void beginLine(int lineNum)
     {
-        line = lines.get(lineNum);
+        line = lines.get(lineNum - 1);
         this.lineNum = lineNum;
         resetLine();
     }

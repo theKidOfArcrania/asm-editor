@@ -6,17 +6,6 @@ package com.theKidOfArcrania.asm.editor.code.highlight;
  */
 public interface Highlighter
 {
-    /**
-     * Removes all tags and syntax highlights on a specific line.
-     * @param line the 1-based line number
-     */
-    void invalidateLine(int line);
-
-    /**
-     * Just removes any tags on the line.
-     * @param line the 1-based line number
-     */
-    void invalidateTags(int line);
 
     /**
      * Inserts a tag highlight (consisting of a bubble and a syntax highlight).

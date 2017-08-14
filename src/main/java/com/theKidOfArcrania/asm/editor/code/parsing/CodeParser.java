@@ -79,6 +79,11 @@ public class CodeParser
         });
     }
 
+    public int getLineCount()
+    {
+        return reader.getLineCount();
+    }
+
     /**
      * Inserts a new line of code at the particular line number. This new line will be marked dirty, but will not be
      * automatically parsed until a call to {@link #reparse(boolean)}.
@@ -88,7 +93,7 @@ public class CodeParser
      */
     public void insertLine(int lineNum, String line)
     {
-        reader.insertLine(lineNum - 1, line);
+        reader.insertLine(lineNum, line);
         parsedCode.add(lineNum - 1, DIRTY_STATEMENT);
     }
 
@@ -101,9 +106,8 @@ public class CodeParser
      */
     public void modifyLine(int lineNum, String line)
     {
-        reader.modifyLine(lineNum - 1, line);
+        reader.modifyLine(lineNum, line);
         parsedCode.set(lineNum - 1, DIRTY_STATEMENT);
-        highlighter.invalidateLine(lineNum);
     }
 
     /**
@@ -114,7 +118,17 @@ public class CodeParser
     public void deleteLine(int lineNum)
     {
         reader.deleteLine(lineNum);
-        parsedCode.remove(lineNum).reset();
+        parsedCode.remove(lineNum - 1).reset();
+    }
+
+    /**
+     * Obtains line at the particular line number
+     * @param lineNum line number.
+     * @return the line string.
+     */
+    public String getLine(int lineNum)
+    {
+        return reader.getLine(lineNum);
     }
 
     /**
@@ -166,10 +180,7 @@ public class CodeParser
         {
             CodeStatement s = parsedCode.get(i);
             if (s != INVALID_STATEMENT && s != DIRTY_STATEMENT)
-            {
-                highlighter.invalidateTags(i + 1);
                 success &= s.resolveSymbols();
-            }
         }
 
         return success;
@@ -295,7 +306,8 @@ public class CodeParser
     private void parseSyntaxHighlight()
     {
         int prevEnd = -1;
-        reader.visitToken(0);
+        if (reader.getTokensRead() > 0)
+            reader.visitToken(0);
         for (int i = 0; i < reader.getTokensRead(); i++)
         {
             SyntaxType type = null;

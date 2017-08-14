@@ -6,7 +6,7 @@ package com.theKidOfArcrania.asm.editor.code.parsing;
  * @author Henry Wang
  * @see Position
  */
-public class Range
+public class Range implements Comparable<Range>
 {
     private final Position start;
     private final Position end;
@@ -88,6 +88,34 @@ public class Range
     {
         this.start = start;
         this.end = end;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Range range = (Range) o;
+
+        return start.equals(range.start) && end.equals(range.end);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        int result = start.hashCode();
+        result = 31 * result + end.hashCode();
+        return result;
+    }
+
+    @Override
+    public int compareTo(Range o)
+    {
+        if (start.equals(o.start))
+            return end.compareTo(o.end);
+        else
+            return start.compareTo(o.start);
     }
 
     public Position getStart()

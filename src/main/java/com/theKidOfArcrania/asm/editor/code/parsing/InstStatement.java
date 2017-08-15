@@ -111,10 +111,15 @@ public class InstStatement extends CodeStatement
         return opcode.getNumber();
     }
 
-    public TypeSignature getArgTypeSig(int arg)
+    /**
+     * Obtains the associated type signature with the specific argument when converted into an object value.
+     * @param ind the index of argument
+     * @return the type signature.
+     */
+    public TypeSignature getArgTypeSig(int ind)
     {
         String sig;
-        switch ((BasicParamType)getArgExactType(arg))
+        switch ((BasicParamType)getArgExactType(ind))
         {
             case INTEGER: sig = "I"; break;
             case LONG: sig = "J"; break;

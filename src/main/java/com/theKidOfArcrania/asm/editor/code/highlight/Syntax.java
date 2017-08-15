@@ -18,9 +18,5 @@ public class Syntax extends HighlightMark<SyntaxType>
     public Syntax(SyntaxType type, Range span)
     {
         super(type, span);
-        if (type == null || span == null)
-            throw new NullPointerException();
-
     }
-
 }

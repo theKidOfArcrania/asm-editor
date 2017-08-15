@@ -36,7 +36,10 @@ public abstract class InstSpec
         for (int i = 0; i < params.length; i++)
         {
             if (!reader.nextArgument())
+            {
+                reader.errorExpected(params[i].getName());
                 return null;
+            }
             if (!params[i].matches(reader))
             {
                 reader.errorExpected(params[i].getName());

@@ -10,8 +10,8 @@ import java.util.*;
  */
 public class IndexHashSet<T> extends AbstractSet<T>
 {
-    private HashMap<T, Integer> indexes = new HashMap<>();
-    private ArrayList<T> elements = new ArrayList<>();
+    private final HashMap<T, Integer> indexes = new HashMap<>();
+    private final ArrayList<T> elements = new ArrayList<>();
 
     @Override
     public boolean add(T element)
@@ -272,7 +272,7 @@ public class IndexHashSet<T> extends AbstractSet<T>
 
     @SuppressWarnings("SuspiciousToArrayCall")
     @Override
-    public <T> T[] toArray(T[] a)
+    public <U> U[] toArray(U[] a)
     {
         return elements.toArray(a);
     }

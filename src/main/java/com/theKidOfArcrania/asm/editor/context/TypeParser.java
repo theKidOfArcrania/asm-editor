@@ -99,7 +99,7 @@ class TypeParser
 
     public boolean isEndingParameter()
     {
-        if (buff[ind] == METHOD.getEndMarker())
+        if (ind < buff.length && buff[ind] == METHOD.getEndMarker())
         {
             ind++;
             return true;

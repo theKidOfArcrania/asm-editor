@@ -19,6 +19,8 @@ public abstract class HighlightMark<T extends Enum<T>>
      */
     HighlightMark(T type, Range span)
     {
+        if (type == null || span == null)
+            throw new NullPointerException();
         this.type = type;
         this.span = span;
     }
@@ -31,5 +33,30 @@ public abstract class HighlightMark<T extends Enum<T>>
     public T getType()
     {
         return type;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        HighlightMark<?> that = (HighlightMark<?>) o;
+
+        return type.equals(that.type) && span.equals(that.span);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        int result = type.hashCode();
+        result = 31 * result + span.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString()
+    {
+        return getType() + "@" + span;
     }
 }

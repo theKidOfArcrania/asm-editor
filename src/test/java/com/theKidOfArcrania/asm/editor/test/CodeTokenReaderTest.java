@@ -89,22 +89,6 @@ public class CodeTokenReaderTest
         assertEquals("Hello",reader.getToken());
     }
 
-    //@Test
-    public void testInsertLine() throws Exception
-    {
-
-    }
-
-    //@Test
-    public void testDeleteLine() throws Exception
-    {
-    }
-
-    //@Test
-    public void testModifyLine() throws Exception
-    {
-    }
-
     @Test
     public void testGetTokenNum() throws Exception
     {
@@ -131,12 +115,6 @@ public class CodeTokenReaderTest
         assertEquals(2, reader.getTokenStartIndex());
         assertEquals(4, reader.getTokenEndIndex());
     }
-
-    @Test
-    public void testGetResolvedSymbols() throws Exception
-    {
-    }
-
 
     @Test
     public void testNextArgument() throws Exception

@@ -1,24 +1,41 @@
+.styled-text-area
+{
+    -fx-background-color: #ddd;
+}
+
+.styled-text-area .paragraph-box
+{
+    -fx-background-color: white;
+}
+
 .tag-error
 {
-    -fx-border-color: red;
-    -fx-border-width: 0 0 1 0;
+    -rtfx-underline-color: red;
+    -rtfx-underline-width: 1;
+    -fx-fill: red;
 }
 
 .tag-warning
 {
-    -fx-border-color: yellow;
-    -fx-border-width: 0 0 1 0;
+    -rtfx-underline-color: yellow;
+    -rtfx-underline-width: 1;
+    -fx-fill: yellow;
 }
 
 .syntax-comment
 {
-    -fx-fill: green;
+    -fx-fill: gray;
 }
 
 .syntax-directive
 {
     -fx-fill: teal;
     -fx-font-weight: bold;
+}
+
+.syntax-identifier
+{
+    -fx-fill: black;
 }
 
 .syntax-instruction
@@ -34,25 +51,28 @@
 
 .syntax-number
 {
-    -fx-fill: orange;
+    -fx-fill: green;
 }
 
 .syntax-string
 {
-    -fx-fill: orange;
+    -fx-fill: goldenrod;
 }
 
 .syntax-comma
 {
-    -fx-fill: orangered;
+    -fx-fill: darkviolet;
 }
 
 .syntax-signature
 {
     -fx-fill: blue;
+    -fx-font-style: italic;
 }
 
 .syntax-handle
 {
     -fx-fill: blue;
+    -fx-font-style: italic;
 }
+

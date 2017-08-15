@@ -47,8 +47,7 @@ public class Position implements Comparable<Position>
 
         Position position = (Position) o;
 
-        if (lineNumber != position.lineNumber) return false;
-        return columnNumber == position.columnNumber;
+        return lineNumber == position.lineNumber && columnNumber == position.columnNumber;
     }
 
     @Override
@@ -57,5 +56,11 @@ public class Position implements Comparable<Position>
         int result = lineNumber;
         result = 31 * result + columnNumber;
         return result;
+    }
+
+    @Override
+    public String toString()
+    {
+        return "L" + lineNumber + "C" + columnNumber;
     }
 }

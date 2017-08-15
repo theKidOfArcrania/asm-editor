@@ -28,6 +28,10 @@ public class StackMapFrame
     {
         private final StackMapFrame tester;
 
+        /**
+         * Constructs a new test interface. This is private since we will use reflection to access constructor anyways.
+         * @param tester the associated stack map frame object to test.
+         */
         private TestInterface(StackMapFrame tester)
         {
             this.tester = tester;
@@ -43,6 +47,11 @@ public class StackMapFrame
             return tester.maxVars;
         }
 
+        /**
+         * Gets the local variable at the index
+         * @param ind the index of local variable
+         * @return the frame corresponding with local variable.
+         */
         public FrameElement getVar(int ind)
         {
             return tester.localVariables.get(ind);
@@ -252,12 +261,12 @@ public class StackMapFrame
 
         /**
          * Checks that the variable specified is the right type. For special 2 size operands, the next slot MUST be of type
-         * TOP and the index specified MUST be of the specified type. The specified type must be a queriable type, i.e.
+         * TOP and the index specified MUST be of the specified type. The specified type must be a queryable type, i.e.
          * has a value that has a meaningful value, not NULL or TOP. If any conditions fail, an exception will be thrown.
          * @param index the index of the variable.
          * @param type the frame type required.
          * @throws FrameException if the type-check fails.
-         * @throws IllegalArgumentException if the type passed is not a valid queriable type.
+         * @throws IllegalArgumentException if the type passed is not a valid queryable type.
          * @return the frame element representing the variable.
          */
         public FrameElement checkVarType(int index, FrameType type) throws FrameException
@@ -330,21 +339,21 @@ public class StackMapFrame
      * Checks if the type signature represented by the value can be assigned to the type signature represented by the
      * assignee. In other words this checks whether if the value type signature can be converted via a widening
      * conversion to the assignee.
-     * @param assignee the assigneee type signature
+     * @param assignee the assignee type signature
      * @param value the value type signature.
      * @throws FrameException if the conversion cannot be done.
      */
     private static void checkIsAssignable(TypeSignature assignee, TypeSignature value) throws FrameException
     {
         if (!assignee.isObject() || !value.isObject())
-            throw new IllegalArgumentException("Expected two objects to test assignability.");
+            throw new IllegalArgumentException("Expected two object types.");
         if (!isAssignable(assignee, value))
             throw new FrameException("Unable to convert from '" + value + "' to '" + assignee + "'.");
     }
 
-    private MethodContext mth;
-    private Deque<FrameElement> operandStack;
-    private ArrayList<FrameElement> localVariables;
+    private final MethodContext mth;
+    private final Deque<FrameElement> operandStack;
+    private final ArrayList<FrameElement> localVariables;
 
     private int maxStack;
     private int maxVars;
@@ -1201,12 +1210,12 @@ public class StackMapFrame
 
     /**
      * Checks that the variable specified is the right type. For special 2 size operands, the next slot MUST be of type
-     * TOP and the index specified MUST be of the specified type. The specified type must be a queriable type, i.e.
+     * TOP and the index specified MUST be of the specified type. The specified type must be a queryable type, i.e.
      * has a value that has a meaningful value, not NULL or TOP. If any conditions fail, an exception will be thrown.
      * @param index the index of the variable.
      * @param type the frame type required.
      * @throws FrameException if the type-check fails.
-     * @throws IllegalArgumentException if the type passed is not a valid queriable type.
+     * @throws IllegalArgumentException if the type passed is not a valid queryable type.
      * @return the frame element representing the variable.
      */
     private FrameElement checkVarType(int index, FrameType type) throws FrameException

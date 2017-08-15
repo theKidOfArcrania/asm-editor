@@ -6,7 +6,7 @@ package com.theKidOfArcrania.asm.editor.code.highlight;
  */
 public enum TagType
 {
-    ERROR_TAG, WARNING_TAG;
+    ERROR, WARNING;
 
     @Override
     public String toString()

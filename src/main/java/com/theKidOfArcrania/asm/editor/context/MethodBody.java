@@ -5,10 +5,11 @@ import org.objectweb.asm.Opcodes;
 
 import java.util.ArrayList;
 
+@SuppressWarnings({"JavaDoc", "MagicNumber", "deprecation"})
 class MethodBody extends MethodVisitor {
     private static class Action {
-        private int method;
-        private Object[] args;
+        private final int method;
+        private final Object[] args;
 
         public Action(int method, Object[] args) {
             this.method = method;
@@ -68,7 +69,7 @@ class MethodBody extends MethodVisitor {
                     visitor.visitIntInsn((int) action.args[0], (int) action.args[1]);
                     break;
                 case 13:
-                    visitor.visitLdcInsn((java.lang.Object) action.args[0]);
+                    visitor.visitLdcInsn(action.args[0]);
                     break;
                 case 14:
                     visitor.visitTypeInsn((int) action.args[0], (java.lang.String) action.args[1]);

@@ -1,0 +1,5 @@
+#Calls System.out.println("...").
+getstatic java/lang/System, out, @Ljava/io/PrintStream;
+ldc "Hello world from Java Bytecode!"
+invokevirtual java/io/PrintStream, println, @(Ljava/lang/String;)V
+return #return from method.

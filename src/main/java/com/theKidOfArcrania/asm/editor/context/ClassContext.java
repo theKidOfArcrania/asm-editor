@@ -58,13 +58,7 @@ public class ClassContext
 
             TypeSignature sig = TypeSignature.parseTypeSig(desc);
             if (name != null && sig != null)
-            {
-                outer.postLoad.add(() ->
-                {
-                    MethodContext mth = outer.findMethod(name, sig);
-                    ctx.outerMethod = mth;
-                });
-            }
+                outer.postLoad.add(() -> ctx.outerMethod = outer.findMethod(name, sig));
         }
 
         @Override

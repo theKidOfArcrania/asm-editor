@@ -217,7 +217,7 @@ public class CodeTokenReader
      */
     public void errorExpected(String type)
     {
-        error("Expected: valid " + type + ".", getTokenPos());
+        error("Expected: valid " + type + ".", tokenNum == -1 ? Range.lineRange(this) : getTokenPos());
     }
 
     /**
@@ -552,7 +552,7 @@ public class CodeTokenReader
      */
     private void parseNumber()
     {
-        parseToken(".");
+        parseToken(".+-");
         boolean isLong = token.toUpperCase().endsWith("L");
         boolean isDouble = token.toUpperCase().endsWith("D");
         boolean isFloat = token.toUpperCase().endsWith("F");
@@ -673,7 +673,7 @@ public class CodeTokenReader
                         break;
                     default:
                         if (errorMsg == null)
-                            errorMsg = "Invalid hexadecimal.";
+                            errorMsg = "Invalid escape code.";
                 }
             }
             else if (c == '"')

@@ -11,18 +11,17 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.Collection;
 
 import static com.theKidOfArcrania.asm.editor.code.parsing.TokenType.*;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
+@SuppressWarnings({"JavaDoc", "MagicNumber"})
 @RunWith(Parameterized.class)
 public class TokenTypeTest
 {
     private static ClassContext classContext;
     private static MethodContext mthContext;
-    private CodeSymbols globalSymbols;
 
     static
     {
@@ -86,7 +85,7 @@ public class TokenTypeTest
     @Before
     public void setup()
     {
-        globalSymbols = new CodeSymbols(null, classContext);
+        CodeSymbols globalSymbols = new CodeSymbols(null, classContext);
         reader = initReader(globalSymbols, token);
         reader.nextToken();
     }

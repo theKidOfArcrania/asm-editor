@@ -610,7 +610,8 @@ public class InstSpecs
             MethodContext mth = owner.findMethod(name, typeSig);
             if (mth == null)
             {
-                logger.logError("Cannot resolve symbol '" + name + "'.", inst.getArgPos(1));
+                logger.logError("Cannot resolve symbol '" + name + "'.",
+                        new Range(inst.getArgPos(1).getStart(), inst.getArgPos(2).getEnd()));
                 return false;
             }
 

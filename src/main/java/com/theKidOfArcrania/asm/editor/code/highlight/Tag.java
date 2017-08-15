@@ -33,7 +33,7 @@ public class Tag extends HighlightMark<TagType>
     public Tag(TagType type, Range span, String tagDescription)
     {
         super(type, span);
-        if (type == null || span == null || tagDescription == null)
+        if (tagDescription == null)
             throw new NullPointerException();
 
         this.tagDescription = tagDescription;
@@ -42,5 +42,31 @@ public class Tag extends HighlightMark<TagType>
     public String getTagDescription()
     {
         return tagDescription;
+    }
+
+    @Override
+    public String toString()
+    {
+        return super.toString() + " (" + tagDescription + ")";
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+
+        Tag tag = (Tag) o;
+
+        return tagDescription.equals(tag.tagDescription);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        int result = super.hashCode();
+        result = 31 * result + tagDescription.hashCode();
+        return result;
     }
 }

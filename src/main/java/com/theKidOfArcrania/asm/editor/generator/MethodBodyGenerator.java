@@ -30,7 +30,9 @@ public class MethodBodyGenerator
         }
     }
 
-
+    /**
+     * Generates the necessary code
+     */
     private static void gencode()
     {
         Class<MethodVisitor> mthVisitor = MethodVisitor.class;
@@ -106,6 +108,11 @@ public class MethodBodyGenerator
         }
     }
 
+    /**
+     * Prints out a line of code with a number of indentations.
+     * @param indent the number of indentations before the code.
+     * @param line the actual line of code
+     */
     private static void code(int indent, String line)
     {
         for (int i = 0; i < indent * 4; i++)

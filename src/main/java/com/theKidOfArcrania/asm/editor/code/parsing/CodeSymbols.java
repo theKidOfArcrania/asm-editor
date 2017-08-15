@@ -78,7 +78,7 @@ public class CodeSymbols
      */
     public boolean containsHandle(String name)
     {
-        return handles.containsKey(name) || parent.containsHandle(name);
+        return handles.containsKey(name) || parent != null && parent.containsHandle(name);
     }
 
     /**
@@ -100,7 +100,7 @@ public class CodeSymbols
     public Handle getHandle(String name)
     {
         Handle h = handles.get(name);
-        if (h == null)
+        if (h == null && parent != null)
             return parent.getHandle(name);
         return h;
     }

@@ -1,6 +1,7 @@
 package com.theKidOfArcrania.asm.editor.code.parsing;
 
 import com.theKidOfArcrania.asm.editor.code.highlight.*;
+import com.theKidOfArcrania.asm.editor.code.parsing.inst.InstOpcodes;
 import com.theKidOfArcrania.asm.editor.context.MethodContext;
 
 import java.util.ArrayList;
@@ -68,13 +69,13 @@ public class CodeParser
             @Override
             public void logError(String description, Range highlight)
             {
-                highlighter.insertTag(new Tag(TagType.ERROR_TAG, highlight, description));
+                highlighter.insertTag(new Tag(TagType.ERROR, highlight, description));
             }
 
             @Override
             public void logWarning(String description, Range highlight)
             {
-                highlighter.insertTag(new Tag(TagType.WARNING_TAG, highlight, description));
+                highlighter.insertTag(new Tag(TagType.WARNING, highlight, description));
             }
         });
     }
@@ -176,9 +177,8 @@ public class CodeParser
         boolean success = resolveLabels();
 
         //Invoke resolve symbols
-        for (int i = 0; i < parsedCode.size(); i++)
+        for (CodeStatement s : parsedCode)
         {
-            CodeStatement s = parsedCode.get(i);
             if (s != INVALID_STATEMENT && s != DIRTY_STATEMENT)
                 success &= s.resolveSymbols();
         }
@@ -272,7 +272,7 @@ public class CodeParser
             parsedCode.set(lineInd, INVALID_STATEMENT);
             return false;
         }
-        else if (reader.getTokenType() != TokenType.IDENTIFIER)
+        else
         {
             CodeStatement line;
             switch (reader.getTokenType())
@@ -315,20 +315,29 @@ public class CodeParser
             {
                 String token = reader.getToken();
                 if (token.startsWith("$"))
+                {
+                    //make sure it's a valid directive.
                     type = SyntaxType.DIRECTIVE;
+                }
                 else if (token.endsWith(":"))
                     type = SyntaxType.LABEL;
                 else
-                    type = SyntaxType.INSTRUCTION;
+                {
+                    if (InstOpcodes.fetchOpcode(token) != null)
+                        type = SyntaxType.INSTRUCTION;
+                }
             }
             else
             {
                 if (reader.getTokenType() != null)
                     type = syntaxScheme.get(reader.getTokenType());
                 String line = reader.getLine();
-                int start = prevEnd;
-                while ((start = line.indexOf(',', start)) < reader.getTokenStartIndex())
+                int start = line.indexOf(',', prevEnd);
+                while (start != -1 && start < reader.getTokenStartIndex())
+                {
                     highlighter.insertSyntax(new Syntax(SyntaxType.COMMA, characterRange(reader.getLineNumber(), start)));
+                    start = line.indexOf(',', start + 1);
+                }
             }
 
             if (type != null)
@@ -344,6 +353,9 @@ public class CodeParser
             highlighter.insertSyntax(new Syntax(SyntaxType.COMMENT,  tokenRange(reader.getLineNumber(), commentStart, len)));
     }
 
+    /**
+     * Verifies that the stack is not misused in code, and also that the required stack frames are placed in jumps.
+     */
     private void verifyStack()
     {
 

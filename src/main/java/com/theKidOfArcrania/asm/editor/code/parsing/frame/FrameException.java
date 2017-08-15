@@ -7,6 +7,8 @@ package com.theKidOfArcrania.asm.editor.code.parsing.frame;
  */
 public class FrameException extends Exception
 {
+    private static final long serialVersionUID = 4961800575541837476L;
+
     /**
      * Constructs a new FrameException with a message field.
      * @param msg the message with this stack exception.

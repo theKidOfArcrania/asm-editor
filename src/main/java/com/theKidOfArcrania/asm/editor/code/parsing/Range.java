@@ -128,5 +128,9 @@ public class Range implements Comparable<Range>
         return end;
     }
 
-
+    @Override
+    public String toString()
+    {
+        return "[" + start + ", " + end + "]";
+    }
 }

@@ -17,6 +17,7 @@ import java.lang.reflect.Modifier;
 
 import static org.junit.Assert.*;
 
+@SuppressWarnings("JavaDoc")
 @RunWith(Parameterized.class)
 public class InstStatementTest
 {
@@ -77,7 +78,6 @@ public class InstStatementTest
         };
     }
 
-    private CodeSymbols global;
     private CodeTokenReader reader;
     private InstStatement parsed;
     private int curMode;
@@ -100,7 +100,7 @@ public class InstStatementTest
     @Before
     public void setup()
     {
-        global = new CodeSymbols(null, classContext);
+        CodeSymbols global = new CodeSymbols(null, classContext);
         global.addHandle("handle1", new Handle(Opcodes.H_GETFIELD, "owner", "name", "()V", true));
         global.addHandle("bsm", new Handle(Opcodes.H_INVOKESTATIC, "owner", "name2",
                 "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;JJ" +
@@ -115,6 +115,8 @@ public class InstStatementTest
             @Override
             public void logError(String description, Range highlight)
             {
+                assertEquals(1, highlight.getStart().getLineNumber());
+                assertEquals(1, highlight.getEnd().getLineNumber());
                 if (curMode != errMode || !description.toLowerCase().contains(search))
                     fail(description);
                 else

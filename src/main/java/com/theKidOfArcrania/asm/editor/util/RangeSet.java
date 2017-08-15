@@ -263,7 +263,7 @@ public class RangeSet<T> implements Iterable<RangeSet<T>.RangeElement>
             RangeElement copy = ele.copy();
             list.add(copy);
         }
-        return Arrays.spliterator((RangeElement[])list.toArray(new Object[0]));
+        return Arrays.spliterator(list.toArray(new RangeSet.RangeElement[0]));
     }
 
     @Override

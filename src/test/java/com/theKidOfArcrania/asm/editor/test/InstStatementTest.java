@@ -58,6 +58,7 @@ public class InstStatementTest
                         "V, \"Something\", &handle1, @Ljava/lang/Class;", "", 0},
                 {InstOpcodes.INST_GOTO, "GOTO label1", "", 0},
                 {InstOpcodes.INST_LDC, "LDC \"ANOTHERSTRING\"", "", 0},
+                {InstOpcodes.INST_LDC, "LDC &handle222", "resolve", 2},
                 {InstOpcodes.INST_LOOKUPSWITCH, "LOOKUPSWITCH label1, 1, label1, 2, label1, 3, label1, 100, label1", "", 0},
                 {InstOpcodes.INST_TABLESWITCH, "TABLESWITCH 1, 5, label1, label1, label1, label1, label1, label1", "", 0},
                 {InstOpcodes.INST_NEW, "NEW @Ljava/lang/Math;", "", 0},

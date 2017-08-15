@@ -73,6 +73,6 @@
 .syntax-handle
 {
     -fx-fill: blue;
-    -fx-font-style: italic;
+    -fx-font-weight: bold;
 }
 

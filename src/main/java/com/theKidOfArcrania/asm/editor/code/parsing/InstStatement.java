@@ -27,7 +27,7 @@ public class InstStatement extends CodeStatement
         InstOpcodes opcode = InstOpcodes.fetchOpcode(instName);
         if (opcode == null)
         {
-            reader.error("Invalid instruction name.", lineRange(reader));
+            reader.error("Invalid instruction name.", reader.getTokenPos());
             return null;
         }
 

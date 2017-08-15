@@ -145,7 +145,7 @@ public class MethodEditor extends StackPane
          */
         public void deleteLine(int lineNum)
         {
-            lines.remove(lineNum);
+            lines.remove(lineNum - 1);
         }
 
         /**

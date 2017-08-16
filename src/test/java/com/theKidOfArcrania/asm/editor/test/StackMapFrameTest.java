@@ -34,7 +34,7 @@ public class StackMapFrameTest
             mthContext = classContext.addMethod(Modifier.PUBLIC, "TestMethod", parseTypeSig("()V"));
         }
         else
-            mthContext = classContext.findMethod("TestMethod", parseTypeSig("()V"));
+            mthContext = classContext.findMethod("TestMethod", parseTypeSig("()V"), false);
     }
 
     private TestInterface tester;

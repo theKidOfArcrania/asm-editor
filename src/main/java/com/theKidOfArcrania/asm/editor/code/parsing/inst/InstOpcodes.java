@@ -1,5 +1,6 @@
 package com.theKidOfArcrania.asm.editor.code.parsing.inst;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 
 import static org.objectweb.asm.Opcodes.*;
@@ -72,14 +73,33 @@ public enum InstOpcodes
     INST_TABLESWITCH(TABLESWITCH, TABLE_SWITCH_INST_SPEC);
 
     //Not suppported: INST_RET(RET, VAR_INST_SPEC), INST_JSR(JSR, JMP_INST_SPEC)
-
     private static final HashMap<String, InstOpcodes> nameMappings;
+    private static final InstOpcodes[] intOpcodes;
+    private static final EnumSet<InstOpcodes> staticOps;
 
     static
     {
         nameMappings = new HashMap<>();
+        intOpcodes = new InstOpcodes[200];
         for (InstOpcodes opcode : InstOpcodes.values())
+        {
             nameMappings.put(opcode.getInstName(), opcode);
+            intOpcodes[opcode.getNumber()] = opcode;
+        }
+
+        staticOps = EnumSet.of(INST_GETSTATIC, INST_PUTSTATIC, INST_INVOKESTATIC);
+    }
+
+    /**
+     * Finds the opcode corresponding to the particular opcode number.
+     * @param opcode the opcode number.
+     * @return the corresponding opcode.
+     */
+    public static InstOpcodes fromNumber(int opcode)
+    {
+        if (opcode < 0 || opcode >= intOpcodes.length || intOpcodes[opcode] == null)
+            throw new IllegalArgumentException();
+        return intOpcodes[opcode];
     }
 
     /**
@@ -104,6 +124,11 @@ public enum InstOpcodes
     {
         this.opcode = opcode;
         this.spec = spec;
+    }
+
+    public boolean isStatic()
+    {
+        return staticOps.contains(this);
     }
 
     /**

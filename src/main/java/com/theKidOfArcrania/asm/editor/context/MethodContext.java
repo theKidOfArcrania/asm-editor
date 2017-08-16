@@ -1,6 +1,7 @@
 package com.theKidOfArcrania.asm.editor.context;
 
 
+import com.theKidOfArcrania.asm.editor.code.parsing.CodeSymbols;
 import org.objectweb.asm.MethodVisitor;
 
 import java.util.HashSet;
@@ -53,6 +54,18 @@ public class MethodContext extends MemberContext
     {
         body = new MethodBody();
         return body;
+    }
+
+    /**
+     * Reads the code body of this method context if any.
+     * @param global the global code symbols for method handles.
+     * @return the resulting code.
+     */
+    public String readCode(CodeSymbols global)
+    {
+        MethodBodyLoader loader = new MethodBodyLoader(global);
+        body.accept(loader);
+        return "# " + getOwner() + "." + name + getSignature() + "\n" + loader.toCode();
     }
 
     /**

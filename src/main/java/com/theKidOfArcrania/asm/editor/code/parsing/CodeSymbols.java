@@ -5,6 +5,7 @@ import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Objects;
 
 /**
@@ -17,6 +18,7 @@ public class CodeSymbols
     private final ClassContext thisCtx;
     private final HashMap<String, Label> labels;
     private final HashMap<String, Handle> handles;
+    private final HashMap<Handle, HashSet<String>> handleNames;
     private final HashMap<InstStatement, Label> mappedLabels;
     private final HashMap<Label, InstStatement> mappedStatements;
 
@@ -31,6 +33,7 @@ public class CodeSymbols
         this.thisCtx = thisCtx;
         this.labels = new HashMap<>();
         this.handles = new HashMap<>();
+        this.handleNames = new HashMap<>();
         this.mappedLabels = new HashMap<>();
         this.mappedStatements = new HashMap<>();
     }
@@ -58,7 +61,10 @@ public class CodeSymbols
     {
         Objects.requireNonNull(name);
         Objects.requireNonNull(parsed);
-        return handles.putIfAbsent(name, parsed) == null;
+        if (handles.putIfAbsent(name, parsed) != null)
+            return false;
+        handleNames.computeIfAbsent(parsed, key -> new HashSet<>()).add(name);
+        return true;
     }
 
     /**
@@ -79,6 +85,20 @@ public class CodeSymbols
     public boolean containsHandle(String name)
     {
         return handles.containsKey(name) || parent != null && parent.containsHandle(name);
+    }
+
+    /**
+     * Obtains the first name of this handle object if it exists here, or in the parent code symbols. If not found, this
+     * will return <tt>null</tt>.
+     * @param han the handle object
+     * @return a string alias to this handle if found.
+     */
+    public String getHandleName(Handle han)
+    {
+        HashSet<String> names = handleNames.get(han);
+        if (names == null || names.isEmpty())
+            return parent == null ? null : parent.getHandleName(han);
+        return names.iterator().next();
     }
 
     /**
@@ -144,7 +164,11 @@ public class CodeSymbols
      */
     public boolean removeHandle(String name)
     {
-        return handles.remove(name) != null;
+        Handle removed = handles.remove(name);
+        if (removed == null)
+            return false;
+        handleNames.get(removed).remove(name);
+        return true;
     }
 
     /**

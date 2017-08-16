@@ -7,6 +7,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 import static com.theKidOfArcrania.asm.editor.context.TypeSort.*;
 
+@SuppressWarnings("JavaDoc")
 public class TypeSignatureTest
 {
     private static final String[] PRIM_NAMES = {"B", "C", "D", "F", "I", "J", "S", "V", "Z"};
@@ -70,7 +71,6 @@ public class TypeSignatureTest
                 "Ljava.lang.Object;", "[[[BB"};
         for (String s : badSigs)
         {
-            System.out.println("Testing: '" + s + "'");
             TypeSignature sig = TypeSignature.parseTypeSig(s);
             assertNull("Faulty signature is valid: '" + s + "'", sig);
         }

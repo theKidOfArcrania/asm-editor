@@ -6,7 +6,6 @@ import com.theKidOfArcrania.asm.editor.code.parsing.CodeSymbols;
 import com.theKidOfArcrania.asm.editor.code.parsing.Range;
 import com.theKidOfArcrania.asm.editor.context.ClassContext;
 import com.theKidOfArcrania.asm.editor.context.MethodContext;
-import com.theKidOfArcrania.asm.editor.context.TypeSignature;
 import com.theKidOfArcrania.asm.editor.util.RangeSet;
 import javafx.application.Application;
 import javafx.concurrent.Task;
@@ -21,7 +20,6 @@ import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.richtext.model.PlainTextChange;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
 
-import java.lang.reflect.Modifier;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -29,6 +27,8 @@ import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static com.theKidOfArcrania.asm.editor.context.ClassContext.getInternalName;
+import static com.theKidOfArcrania.asm.editor.context.TypeSignature.parseTypeSig;
 import static java.util.stream.Collectors.joining;
 
 /**
@@ -49,17 +49,12 @@ public class MethodEditor extends StackPane
         @Override
         public void start(Stage primaryStage) throws Exception
         {
-            ClassContext classContext = ClassContext.findContext("TestClass");
-            MethodContext mthContext;
-            if (classContext == null)
-            {
-                classContext = ClassContext.createContext("TestClass", false);
-                mthContext = classContext.addMethod(Modifier.PUBLIC, "TestMethod", TypeSignature.parseTypeSig("()V"));
-            }
-            else
-                mthContext = classContext.findMethod("TestMethod", TypeSignature.parseTypeSig("()V"));
+            ClassContext classContext = ClassContext.findContext(getInternalName(MethodEditorViewer.class));
+            MethodContext mthContext = classContext.findMethod("start",
+                    parseTypeSig("(Ljavafx/stage/Stage;)V"), false);
+            String code = mthContext.readCode(new CodeSymbols(null, classContext));
 
-            MethodEditor editor = new MethodEditor(null, mthContext, "");
+            MethodEditor editor = new MethodEditor(null, mthContext, code);
             StackPane root = new StackPane(editor);
             StackPane.setMargin(editor, new Insets(10));
 
@@ -250,7 +245,7 @@ public class MethodEditor extends StackPane
         return list;
     }
 
-    public static final Duration PARSE_DELAY = Duration.ofMillis(500);
+    public static final Duration PARSE_DELAY = Duration.ofMillis(300);
 
     private final List<Tag> highlightTags;
     private final List<Syntax> highlightSyntaxes;
@@ -280,7 +275,7 @@ public class MethodEditor extends StackPane
             t.setDaemon(true);
             return t;
         });
-        parser = new CodeParser(global, mth, code, new Highlighter()
+        parser = new CodeParser(global, mth, "", new Highlighter()
         {
 
             @Override
@@ -323,6 +318,8 @@ public class MethodEditor extends StackPane
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
         scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
         getChildren().addAll(scroll);
+
+        codeArea.insertText(0, code);
     }
 
     /**
@@ -421,8 +418,8 @@ public class MethodEditor extends StackPane
 //            System.out.println(parser.getLine(i + 1));
 //        System.out.println("---");
 
-        if (parser.reparse(false))
-            parser.resolveSymbols();
+        parser.reparse(false);
+        parser.resolveSymbols();
     }
 
     /**

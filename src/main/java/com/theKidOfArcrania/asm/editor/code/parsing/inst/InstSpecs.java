@@ -13,6 +13,9 @@ import static com.theKidOfArcrania.asm.editor.code.parsing.BasicParamType.*;
 import static com.theKidOfArcrania.asm.editor.code.parsing.Range.characterRange;
 import static com.theKidOfArcrania.asm.editor.context.ClassContext.findContext;
 import static com.theKidOfArcrania.asm.editor.context.TypeSignature.isAssignable;
+import static com.theKidOfArcrania.asm.editor.context.TypeSignature.parseTypeSig;
+import static java.lang.reflect.Modifier.isAbstract;
+import static java.lang.reflect.Modifier.isStatic;
 import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
 
@@ -54,7 +57,7 @@ public class InstSpecs
             String ownerName = inst.getArgValue(0, String.class);
             String name = inst.getArgValue(1, String.class);
             ClassContext owner = findContext(ownerName);
-            TypeSignature typeSig = TypeSignature.parseTypeSig(inst.getArgValue(2, String.class));
+            TypeSignature typeSig = parseTypeSig(inst.getArgValue(2, String.class));
 
             if (owner == null)
             {
@@ -86,6 +89,14 @@ public class InstSpecs
             {
                 logger.logError("Cannot access " + (owner.isInterface() ? "interface" : "class") +
                         " '" + owner.getName() + "'.", inst.getArgPos(0));
+                return false;
+            }
+
+            boolean staticFld = isStatic(fld.getModifiers());
+            if (staticFld ^ inst.getOpcode().isStatic())
+            {
+                logger.logError(staticFld ? "Cannot access static field in non-static context."
+                        : "Cannot access non-static field in static context.", inst.getArgPos(1));
                 return false;
             }
 
@@ -246,11 +257,11 @@ public class InstSpecs
             String[] args = {"Ljava/lang/invoke/MethodHandles$Lookup;", "Ljava/lang/String;",
                     "Ljava/lang/invoke/MethodType;"};
             for (String arg : args)
-                actualParams.add(TypeSignature.parseTypeSig(arg));
+                actualParams.add(parseTypeSig(arg));
             for (int i = OFFSET; i < inst.getArgSize(); i++)
                 actualParams.add(inst.getArgTypeSig(i));
 
-            TypeSignature mthSig = TypeSignature.parseTypeSig(mth.getDesc());
+            TypeSignature mthSig = parseTypeSig(mth.getDesc());
             ClassContext retCtx = findContext(mthSig.getReturnType().getClassDescriptor());
             if (retCtx == null || !CALL_SITE.isAssignableFrom(retCtx))
             {
@@ -344,7 +355,7 @@ public class InstSpecs
             boolean success = verifyVarSymbols(logger, inst, resolved, 0);
             if (success && inst.getArgExactType(0) == BasicParamType.FIELD_SIGNATURE)
             {
-                TypeSignature sig = TypeSignature.parseTypeSig(inst.getArgValue(0, String.class));
+                TypeSignature sig = parseTypeSig(inst.getArgValue(0, String.class));
                 if (sig.getSort() != TypeSort.OBJECT && sig.getSort() != TypeSort.ARRAY)
                 {
                     logger.logError("Must be object/array class type.", inst.getArgPos(0));
@@ -543,45 +554,36 @@ public class InstSpecs
         }
     };
 
-    public static final InstSpec TYPE_INST_SPEC = new InstSpec(FIELD_SIGNATURE)
+    public static final InstSpec TYPE_INST_SPEC = new InstSpec(CLASS_NAME)
     {
-        @Override
-        public boolean verifyParse(ErrorLogger logger, InstStatement inst)
-        {
-            TypeSignature sig = TypeSignature.parseTypeSig(inst.getArgValue(0, String.class));
-            if (inst.getOpcode() == InstOpcodes.INST_NEW)
-            {
-                if (sig.getSort() != TypeSort.OBJECT)
-                {
-                    logger.logError("Must be an object type.", inst.getArgPos(0));
-                    return false;
-                }
-            }
-            else if (!sig.isObject())
-            {
-                logger.logError("Must be an array or object type.", inst.getArgPos(0));
-                return false;
-            }
-            return true;
-        }
-
         @Override
         public boolean verifySymbol(ErrorLogger logger, InstStatement inst, CodeSymbols resolved)
         {
-            TypeSignature sig = TypeSignature.parseTypeSig(inst.getArgValue(0, String.class));
-            String unresolved = sig.getUnresolvedClassSymbols();
-            if (unresolved != null)
+            String name = inst.getArgValue(0, String.class);
+            ClassContext cls = findContext(name);
+            if (cls == null)
             {
-                logger.logError("Cannot resolve symbol(s) " + unresolved + ".", inst.getArgPos(2));
+                logger.logError("Cannot resolve symbol '" + name + "'.", inst.getArgPos(0));
                 return false;
             }
+
+            if (inst.getOpcode() == InstOpcodes.INST_NEW)
+            {
+                if (cls.isArray() || cls.isInterface() || isAbstract(cls.getModifiers()))
+                {
+                    logger.logError("Must be an concrete object type.", inst.getArgPos(0));
+                    return false;
+                }
+            }
+
             return true;
         }
 
         @Override
         public void write(MethodVisitor writer, InstStatement inst, CodeSymbols resolved)
         {
-            writer.visitTypeInsn(inst.getOpcodeNum(), inst.getArgValue(0, String.class));
+            String type = inst.getArgValue(0, String.class);
+            writer.visitTypeInsn(inst.getOpcodeNum(), type);
         }
     };
 
@@ -594,11 +596,15 @@ public class InstSpecs
         {
             ClassContext thisCtx = resolved.getThisContext();
             String name = inst.getArgValue(1, String.class);
-            ClassContext owner = findContext(inst.getArgValue(0, String.class));
-            TypeSignature typeSig = TypeSignature.parseTypeSig(inst.getArgValue(2, String.class));
+            String ownerName = inst.getArgValue(0, String.class);
+            ClassContext owner = findContext(ownerName);
+            TypeSignature typeSig = parseTypeSig(inst.getArgValue(2, String.class));
 
             if (owner == null)
-                throw new IllegalArgumentException();
+            {
+                logger.logError("Cannot resolve symbol '" + ownerName + "'.", inst.getArgPos(0));
+                return false;
+            }
 
             String unresolved = typeSig.getUnresolvedClassSymbols();
             if (unresolved != null)
@@ -607,10 +613,10 @@ public class InstSpecs
                 return false;
             }
 
-            MethodContext mth = owner.findMethod(name, typeSig);
+            MethodContext mth = owner.findMethod(name, typeSig, true);
             if (mth == null)
             {
-                logger.logError("Cannot resolve symbol '" + name + "'.",
+                logger.logError("Cannot resolve symbol '" + name + typeSig + "'.",
                         new Range(inst.getArgPos(1).getStart(), inst.getArgPos(2).getEnd()));
                 return false;
             }
@@ -619,6 +625,14 @@ public class InstSpecs
             {
                 logger.logError("Cannot access " + (owner.isInterface() ? "interface" : "class") +
                         " '" + owner.getName() + "'.", inst.getArgPos(0));
+                return false;
+            }
+
+            boolean staticMth = isStatic(mth.getModifiers());
+            if (staticMth ^ inst.getOpcode().isStatic())
+            {
+                logger.logError(staticMth ? "Cannot invoke static method in non-static context."
+                        : "Cannot invoke non-static method in static context.", inst.getArgPos(1));
                 return false;
             }
 
@@ -674,7 +688,7 @@ public class InstSpecs
         public boolean verifyParse(ErrorLogger logger, InstStatement inst)
         {
             int dims = inst.getIntArgValue(1);
-            TypeSignature sig = TypeSignature.parseTypeSig(inst.getArgValue(0, String.class));
+            TypeSignature sig = parseTypeSig(inst.getArgValue(0, String.class));
 
             String unresolved = sig.getUnresolvedClassSymbols();
             if (unresolved != null)
@@ -702,7 +716,7 @@ public class InstSpecs
         @Override
         public boolean verifySymbol(ErrorLogger logger, InstStatement inst, CodeSymbols resolved)
         {
-            TypeSignature typeSig = TypeSignature.parseTypeSig(inst.getArgValue(0, String.class));
+            TypeSignature typeSig = parseTypeSig(inst.getArgValue(0, String.class));
             String unresolved = typeSig.getUnresolvedClassSymbols();
             if (unresolved != null)
             {
@@ -803,7 +817,7 @@ public class InstSpecs
                 break;
             case METHOD_SIGNATURE:
             case FIELD_SIGNATURE:
-                TypeSignature typeSig = TypeSignature.parseTypeSig(inst.getArgValue(ind, String.class));
+                TypeSignature typeSig = parseTypeSig(inst.getArgValue(ind, String.class));
                 String unresolved = typeSig.getUnresolvedClassSymbols();
                 if (unresolved != null)
                 {

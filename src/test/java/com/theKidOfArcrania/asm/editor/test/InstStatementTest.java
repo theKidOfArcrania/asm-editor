@@ -33,7 +33,7 @@ public class InstStatementTest
             mthContext = classContext.addMethod(Modifier.PUBLIC, "TestMethod", TypeSignature.parseTypeSig("()V"));
         }
         else
-            mthContext = classContext.findMethod("TestMethod", TypeSignature.parseTypeSig("()V"));
+            mthContext = classContext.findMethod("TestMethod", TypeSignature.parseTypeSig("()V"), false);
     }
 
     @Parameterized.Parameters(name="Mode {3}: {1}")
@@ -61,14 +61,14 @@ public class InstStatementTest
                 {InstOpcodes.INST_LDC, "LDC &handle222", "resolve", 2},
                 {InstOpcodes.INST_LOOKUPSWITCH, "LOOKUPSWITCH label1, 1, label1, 2, label1, 3, label1, 100, label1", "", 0},
                 {InstOpcodes.INST_TABLESWITCH, "TABLESWITCH 1, 5, label1, label1, label1, label1, label1, label1", "", 0},
-                {InstOpcodes.INST_NEW, "NEW @Ljava/lang/Math;", "", 0},
-                {InstOpcodes.INST_NEW, "NEW @[Ljava/lang/Math;", "object", 1},
-                {InstOpcodes.INST_INVOKEVIRTUAL, "INVOKEVIRTUAL java/lang/Math, sin, @(D)D", "", 0},
+                {InstOpcodes.INST_NEW, "NEW java/lang/Math", "", 0},
+                {InstOpcodes.INST_NEW, "NEW [Ljava/lang/Math;", "object", 2},
+                {InstOpcodes.INST_INVOKESTATIC, "INVOKESTATIC java/lang/Math, sin, @(D)D", "", 0},
                 {InstOpcodes.INST_INVOKEVIRTUAL, "INVOKEVIRTUAL java/lang/Object, <init>, @()V", "", 0},
                 {InstOpcodes.INST_INVOKEVIRTUAL, "INVOKEVIRTUAL java/lang/Math, sinh, @V", "expected", 1},
                 {InstOpcodes.INST_INVOKEVIRTUAL, "INVOKEVIRTUAL java/lang/Math, expm1, @(I)D", "resolve", 2},
                 {InstOpcodes.INST_INVOKEVIRTUAL, "INVOKEVIRTUAL java/lang/Math, expm, @(D)D", "resolve", 2},
-                {InstOpcodes.INST_INVOKEVIRTUAL, "INVOKEVIRTUAL java/lang/Math, powerOfTwoD, @(I)D", "access", 2},
+                {InstOpcodes.INST_INVOKESTATIC, "INVOKESTATIC java/lang/Math, powerOfTwoD, @(I)D", "access", 2},
                 {InstOpcodes.INST_INVOKEVIRTUAL, "INVOKEVIRTUAL com/theKidOfArcrania/asm/editor/test/TestAccess$Inner, bar, @()V", "access", 2},
                 {InstOpcodes.INST_ALOAD, "ALOAD 0", "", 0},
                 {InstOpcodes.INST_ALOAD, "ALOAD -1", "expected", 1},

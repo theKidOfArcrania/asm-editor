@@ -28,7 +28,7 @@ public class CodeTokenReaderTest
             mthContext = classContext.addMethod(Modifier.PUBLIC, "TestMethod", TypeSignature.parseTypeSig("()V"));
         }
         else
-            mthContext = classContext.findMethod("TestMethod", TypeSignature.parseTypeSig("()V"));
+            mthContext = classContext.findMethod("TestMethod", TypeSignature.parseTypeSig("()V"), false);
     }
 
     private CodeTokenReader initReader(String code)

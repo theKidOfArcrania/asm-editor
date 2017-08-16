@@ -10,8 +10,10 @@ import org.objectweb.asm.Opcodes;
 
 import java.util.*;
 
+import static com.theKidOfArcrania.asm.editor.context.ClassContext.findContext;
 import static com.theKidOfArcrania.asm.editor.context.TypeSignature.VOID_TYPE;
 import static com.theKidOfArcrania.asm.editor.context.TypeSignature.isAssignable;
+import static com.theKidOfArcrania.asm.editor.context.TypeSignature.parseTypeSig;
 
 /**
  * Represents a stack map frame element of the java bytecode. A stack map frame provides a "snapshot" of the variables and
@@ -95,17 +97,6 @@ public class StackMapFrame
         public TypeSignature[] insertObjParam(TypeSignature objref, TypeSignature[] params)
         {
             return tester.insertObjParam(objref, params);
-        }
-
-        /**
-         * Obtains a type signature from the associated class descriptor in the instruction. This will always search at
-         * the 0th argument.
-         * @param inst the instruction to search from.
-         * @return the parsed type signature.
-         */
-        public TypeSignature typeSigFromClassDesc(InstStatement inst)
-        {
-            return tester.typeSigFromClassDesc(inst);
         }
 
         /**
@@ -329,7 +320,7 @@ public class StackMapFrame
      */
     private static ClassContext loadClassContext(String desc)
     {
-        ClassContext ctx = ClassContext.findContext(desc);
+        ClassContext ctx = findContext(desc);
         if (ctx == null)
             throw new IllegalArgumentException("Cannot find class '" + desc + "'.");
         return ctx;
@@ -463,7 +454,7 @@ public class StackMapFrame
             case INST_CHECKCAST:
                 checkOpType(FrameType.OBJECT);
                 TypeSignature type = nonNull(operandStack.peek()).getRefSig();
-                TypeSignature target = parseSig(inst, 0);
+                TypeSignature target = parseClassType(inst, 0);
 
                 //Ignore implicit type casts.
                 if (!isAssignable(target, type))
@@ -582,10 +573,10 @@ public class StackMapFrame
                 popOp(FrameType.FLOAT);
                 break;
             case INST_GETFIELD:
-                nonNull(invokeOps(parseSig(inst, 2), typeSigFromClassDesc(inst))[0]);
+                nonNull(invokeOps(parseSig(inst, 2), parseClassType(inst, 0))[0]);
                 break;
             case INST_GETSTATIC:
-                invokeOps(typeSigFromClassDesc(inst), parseSig(inst, 2));
+                invokeOps(parseClassType(inst, 0), parseSig(inst, 2));
                 break;
             case INST_GOTO:
             case INST_NOP:
@@ -684,7 +675,7 @@ public class StackMapFrame
             case INST_INVOKEINTERFACE:
             case INST_INVOKEVIRTUAL:
                 TypeSignature sig = parseSig(inst, 2);
-                TypeSignature[] params = insertObjParam(typeSigFromClassDesc(inst), sig.getParameterTypes());
+                TypeSignature[] params = insertObjParam(parseClassType(inst, 0), sig.getParameterTypes());
                 nonNull(invokeOps(sig.getReturnType(), params)[0]);
                 break;
             case INST_INVOKEDYNAMIC:
@@ -790,7 +781,7 @@ public class StackMapFrame
                     case Opcodes.T_LONG: arrSig = "[J"; break;
                     default: throw new IllegalArgumentException();
                 }
-                pushElePopOps(new FrameElement(FrameType.OBJECT, TypeSignature.parseTypeSig(arrSig)), FrameType.INTEGER);
+                pushElePopOps(new FrameElement(FrameType.OBJECT, parseTypeSig(arrSig)), FrameType.INTEGER);
                 break;
             case INST_POP:
                 popOp(FrameType.TOP);
@@ -800,7 +791,7 @@ public class StackMapFrame
                 popOp(FrameType.TOP);
                 break;
             case INST_PUTFIELD:
-                nonNull(invokeOps(VOID_TYPE, typeSigFromClassDesc(inst), parseSig(inst, 2))[0]);
+                nonNull(invokeOps(VOID_TYPE, parseClassType(inst, 0), parseSig(inst, 2))[0]);
                 break;
             case INST_PUTSTATIC:
                 invokeOps(VOID_TYPE, parseSig(inst, 2));
@@ -824,6 +815,8 @@ public class StackMapFrame
         }
     }
 
+
+
     /**
      * Inserts the implicit object parameter at the beginning of the parameter list.
      * @param objref the object reference
@@ -839,17 +832,6 @@ public class StackMapFrame
     }
 
     /**
-     * Obtains a type signature from the associated class descriptor in the instruction. This will always search at
-     * the 0th argument.
-     * @param inst the instruction to search from.
-     * @return the parsed type signature.
-     */
-    private TypeSignature typeSigFromClassDesc(InstStatement inst)
-    {
-        return TypeSignature.parseTypeSig("L" + inst.getArgValue(0, String.class) + ";");
-    }
-
-    /**
      * Parses the type signature from an instruction
      * @param inst the instruction to parse from.
      * @param arg the argument number of the instruction
@@ -858,7 +840,27 @@ public class StackMapFrame
      */
     private TypeSignature parseSig(InstStatement inst, int arg)
     {
-        TypeSignature sig = TypeSignature.parseTypeSig(inst.getArgValue(arg, String.class));
+        TypeSignature sig = parseTypeSig(inst.getArgValue(arg, String.class));
+        if (sig == null)
+            throw new IllegalArgumentException();
+        return sig;
+    }
+
+    /**
+     * Parses a class identifier type from an instruction as a type signature
+     * @param inst the instruction to parse from.
+     * @param arg the argument number of the instruction
+     * @return the parsed type signature.
+     * @throws IllegalArgumentException if unable to parse type signature.
+     */
+    private TypeSignature parseClassType(InstStatement inst, int arg)
+    {
+        String classDesc = inst.getArgValue(arg, String.class);
+        TypeSignature sig;
+        if (classDesc.startsWith("["))
+            sig = parseTypeSig(classDesc);
+        else
+            sig = parseTypeSig("L" + classDesc + ";");
         if (sig == null)
             throw new IllegalArgumentException();
         return sig;
@@ -925,12 +927,12 @@ public class StackMapFrame
                 throw new FrameException("Dereferencing null pointer.");
             case UNINITIALIZED_THIS:
                 ClassContext thisCtx = mth.getOwner();
-                replace = TypeSignature.parseTypeSig("L" + thisCtx + ";");
+                replace = parseTypeSig("L" + thisCtx + ";");
                 if (!thisCtx.equals(initCtx) && !thisCtx.getSuperClass().equals(initCtx))
                     err = "Must call <init> of super class or of this class";
                 break;
             case UNINITIALIZED:
-                replace = parseSig(actualParams[0].getStatement() /*NEW <type-sig>*/, 0);
+                replace = parseClassType(actualParams[0].getStatement() /*NEW <type-sig>*/, 0);
                 if (!replace.getClassDescriptor().equals(initCtx.toString()))
                     err = "Must call <init> method of " + replace.getClassDescriptor();
                 break;

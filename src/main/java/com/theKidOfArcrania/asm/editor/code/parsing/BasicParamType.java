@@ -1,10 +1,13 @@
 package com.theKidOfArcrania.asm.editor.code.parsing;
 
-import com.theKidOfArcrania.asm.editor.context.ClassContext;
 import com.theKidOfArcrania.asm.editor.context.TypeSignature;
 import com.theKidOfArcrania.asm.editor.context.TypeSort;
 
 import static com.theKidOfArcrania.asm.editor.code.parsing.Range.*;
+import static com.theKidOfArcrania.asm.editor.context.ClassContext.verifyClassNameFormat;
+import static com.theKidOfArcrania.asm.editor.context.TypeSignature.parseTypeSig;
+import static java.lang.Character.isJavaIdentifierPart;
+import static java.lang.Character.isJavaIdentifierStart;
 
 /**
  * Represents the basic parameter types
@@ -60,7 +63,7 @@ public enum BasicParamType implements ParamType
                 return false;
 
             String token = (String)reader.getTokenValue();
-            TypeSignature sig = TypeSignature.parseTypeSig(token);
+            TypeSignature sig = parseTypeSig(token);
             if (sig == null)
             {
                 reader.error("Cannot resolve type signature '" + token + "'.", reader.getTokenPos());
@@ -81,7 +84,12 @@ public enum BasicParamType implements ParamType
             if (!super.checkToken(reader))
                 return false;
             String className = (String)reader.getTokenValue();
-            return ClassContext.verifyClassNameFormat(className);
+            if (!verifyClassNameFormat(className))
+            {
+                reader.error("Cannot resolve class name '" + className + "'.", reader.getTokenPos());
+                return false;
+            }
+            return true;
         }
     }, IDENTIFIER("identifier", TokenType.IDENTIFIER) {
         @Override
@@ -97,8 +105,7 @@ public enum BasicParamType implements ParamType
 
             for (int i = 0; i < token.length(); i++)
             {
-                if (i == 0 ? !Character.isJavaIdentifierStart(token.charAt(i)) : !Character.isJavaIdentifierPart(token
-                    .charAt(i)))
+                if (i == 0 ? !isJavaIdentifierStart(token.charAt(i)) : !isJavaIdentifierPart(token.charAt(i)))
                 {
                     reader.error("Illegal character.", characterRange(reader.getLineNumber(), reader
                             .getTokenStartIndex() + i));
@@ -116,8 +123,7 @@ public enum BasicParamType implements ParamType
             String token = (String)reader.getTokenValue();
             for (int i = 1; i < token.length(); i++)
             {
-                if (i == 1 ? !Character.isJavaIdentifierStart(token.charAt(i)) : !Character.isJavaIdentifierPart(token
-                        .charAt(i)))
+                if (i == 1 ? !isJavaIdentifierStart(token.charAt(i)) : !isJavaIdentifierPart(token.charAt(i)))
                 {
                     reader.error("Illegal character.", characterRange(reader.getLineNumber(), reader
                             .getTokenStartIndex() + i));
@@ -137,7 +143,7 @@ public enum BasicParamType implements ParamType
     private static boolean validTypeSig(CodeTokenReader reader, boolean methodType)
     {
         String token = (String)reader.getTokenValue();
-        if (TypeSignature.parseTypeSig(token) == null)
+        if (parseTypeSig(token) == null)
         {
             reader.error("Cannot resolve type signature '" + token + "'.", reader.getTokenPos());
             return false;

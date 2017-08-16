@@ -45,4 +45,10 @@ public class FieldContext extends MemberContext
     {
         this.defaultValue = defaultValue;
     }
+
+    @Override
+    public String toString()
+    {
+        return getOwner() + "." + getName() + " " + getSignature();
+    }
 }

@@ -8,6 +8,12 @@ import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.util.*;
 
+import static com.theKidOfArcrania.asm.editor.context.TypeSignature.BOOLEAN_TYPE;
+import static com.theKidOfArcrania.asm.editor.context.TypeSignature.parseTypeSig;
+import static java.lang.reflect.Modifier.ABSTRACT;
+import static java.lang.reflect.Modifier.PUBLIC;
+import static java.lang.reflect.Modifier.STATIC;
+
 /**
  * Represents a context of a particular class.
  * @author Henry Wang
@@ -56,9 +62,9 @@ public class ClassContext
             ctx.outer = outer;
             outer.addInnerClass(ctx);
 
-            TypeSignature sig = TypeSignature.parseTypeSig(desc);
+            TypeSignature sig = parseTypeSig(desc);
             if (name != null && sig != null)
-                outer.postLoad.add(() -> ctx.outerMethod = outer.findMethod(name, sig));
+                outer.postLoad.add(() -> ctx.outerMethod = outer.findMethod(name, sig, false));
         }
 
         @Override
@@ -92,7 +98,7 @@ public class ClassContext
         public FieldVisitor visitField(int access, String name, String desc, String signature, Object value)
         {
             //TODO: implement default values.
-            FieldContext fld = ctx.addField(access, name, TypeSignature.parseTypeSig(desc));
+            FieldContext fld = ctx.addField(access, name, parseTypeSig(desc));
             if (Modifier.isStatic(access))
                 fld.setDefaultValue(value);
             return null; //TODO: annotations
@@ -102,7 +108,7 @@ public class ClassContext
         public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions)
         {
             //TODO: implement generics.
-            MethodContext mth = ctx.addMethod(access, name, TypeSignature.parseTypeSig(desc));
+            MethodContext mth = ctx.addMethod(access, name, parseTypeSig(desc));
             if (exceptions != null)
             {
                 for (String except : exceptions)
@@ -123,11 +129,14 @@ public class ClassContext
 
     public static final ClassContext OBJECT_CONTEXT;
     private static final HashMap<String, ClassContext> CLASS_CONTEXT_MAP;
+    private static final EnumMap<TypeSort, ClassContext> PRIMITIVE_MAP;
+
 
     static
     {
         CLASS_CONTEXT_MAP = new HashMap<>();
-        OBJECT_CONTEXT = ClassContext.findContext("java/lang/Object"); //Make sure nothing overrides the Object class
+        OBJECT_CONTEXT = findContext("java/lang/Object"); //Make sure nothing overrides the Object class
+        PRIMITIVE_MAP = new EnumMap<>(TypeSort.class);
     }
 
     /**
@@ -142,6 +151,7 @@ public class ClassContext
             throw new IllegalArgumentException("Cannot get internal name of primitive.");
         return cls.getName().replace('.', '/');
     }
+
 
 
     /**
@@ -171,7 +181,10 @@ public class ClassContext
         {
             try
             {
-                loadContextFromClass(ctx, new ClassReader(name));
+                if (ctx.isArray())
+                    loadArrayContext(ctx);
+                else
+                    loadContextFromClass(ctx, new ClassReader(name));
             }
             catch (IOException e)
             {
@@ -186,6 +199,46 @@ public class ClassContext
     }
 
     /**
+     * Loads an array type class context.
+     * @param ctx the class context to load.
+     */
+    private static void loadArrayContext(ClassContext ctx)
+    {
+        String compName = ctx.getName().substring(1);
+        TypeParser parser = new TypeParser(compName);
+        ClassContext comp;
+        TypeSort sort = parser.nextTypeSort();
+        switch (sort)
+        {
+            case ARRAY: comp = findContext(compName); break;
+            case OBJECT: comp = findContext(compName.substring(1, compName.length() - 1)); break;
+            case VOID:
+            case METHOD: throw new InternalError();
+            default: comp = loadPrimitive(sort);
+        }
+
+        if (comp == null)
+            return;
+
+        ctx.arrayComponent = comp;
+        ctx.superClass = OBJECT_CONTEXT;
+        ctx.interfaces.add(findContext("java/io/Serializable"));
+        ctx.interfaces.add(findContext("java/lang/Cloneable"));
+        ctx.addMethod(PUBLIC, "clone", parseTypeSig("()Ljava/lang/Object;"));
+        ctx.resolved = true;
+    }
+
+    /**
+     * Loads the specified primitive type.
+     * @param prim the primitive type to load.
+     * @return a class context representing the primitive type.
+     */
+    private static ClassContext loadPrimitive(TypeSort prim)
+    {
+        return PRIMITIVE_MAP.computeIfAbsent(prim, ClassContext::new);
+    }
+
+    /**
      * Creates a blank new class context. This will mark this class context as resolved.
      * @param name the internal name of the class.
      * @param itrf whether if this is an interface.
@@ -195,6 +248,8 @@ public class ClassContext
      */
     public static ClassContext createContext(String name, boolean itrf)
     {
+        if (name.startsWith("["))
+            throw new IllegalArgumentException("Cannot create an array class");
         ClassContext ctx = CLASS_CONTEXT_MAP.computeIfAbsent(name, n -> new ClassContext(n, itrf));
         if (ctx.isResolved())
             throw new IllegalArgumentException("Class context '" + name + "' already exists.");
@@ -217,6 +272,8 @@ public class ClassContext
     public static ClassContext createContext(String name, int modifiers, ClassContext outer, ClassContext superClass,
                                              ClassContext[] interfaces)
     {
+        if (name.startsWith("["))
+            throw new IllegalArgumentException("Cannot create an array class");
         ClassContext ctx = CLASS_CONTEXT_MAP.computeIfAbsent(name, ClassContext::new);
         if (ctx.isResolved())
             throw new IllegalArgumentException("Class context '" + name + "' already exists.");
@@ -250,15 +307,32 @@ public class ClassContext
      */
     public static boolean verifyClassNameFormat(String internalName)
     {
-        try
-        {
-            ensureClassNameFormat(internalName);
-            return true;
-        }
-        catch (IllegalArgumentException e)
-        {
+        if (internalName.isEmpty())
             return false;
+
+        if (internalName.startsWith("["))
+            return parseTypeSig(internalName) != null;
+
+
+        char[] name = internalName.toCharArray();
+        boolean beginning = true;
+        for (char ch : name)
+        {
+            if (beginning)
+            {
+                if (!Character.isJavaIdentifierStart(ch))
+                    return false;
+                beginning = false;
+            }
+            else if (!Character.isJavaIdentifierPart(ch))
+            {
+                if (ch != '/')
+                    return false;
+                beginning = true;
+            }
         }
+
+        return !beginning;
     }
 
     /**
@@ -268,38 +342,16 @@ public class ClassContext
      */
     private static void ensureClassNameFormat(String internalName)
     {
-        if (internalName.isEmpty())
-            throw new IllegalArgumentException("Empty class identifier.");
-
-        char[] name = internalName.toCharArray();
-        boolean beginning = true;
-        for (char ch : name)
-        {
-            if (beginning)
-            {
-                if (Character.isJavaIdentifierStart(ch))
-                    beginning = false;
-                else if (ch == '/')
-                    throw new IllegalArgumentException("Class divider/ slash with no identifier.");
-                else
-                    throw new IllegalArgumentException("Illegal character '" + ch + "' in class identifier.");
-            }
-            else if (!Character.isJavaIdentifierPart(ch))
-            {
-                if (ch == '/')
-                    beginning = true;
-                else
-                    throw new IllegalArgumentException("Illegal character '" + ch + "' in class identifier.");
-            }
-        }
-
-        if (beginning)
-            throw new IllegalArgumentException("Class divider/ slash with no identifier.");
+        if (!verifyClassNameFormat(internalName))
+            throw new IllegalArgumentException("Illegal class format: '" + internalName + "'");
     }
+
+    private boolean array;
+    private TypeSort primSort;
 
     private boolean resolved;
     private boolean fullyResolved;
-    private final IndexHashSet<Runnable> postLoad;
+    private final ArrayList<Runnable> postLoad;
 
     private String name;
     private int modifiers;
@@ -314,6 +366,29 @@ public class ClassContext
 
     private final IndexHashSet<MemberContext> members;
 
+    private ClassContext arrayComponent;
+
+    /**
+     * Creates a primitive class context.
+     * @param prim the type of primitive to create.
+     */
+    private ClassContext(TypeSort prim)
+    {
+        this.primSort = prim;
+        PRIMITIVE_MAP.put(prim, this);
+
+        this.modifiers = Modifier.PUBLIC;
+        this.name = null;
+        this.outer = null;
+        this.superClass = null;
+        this.interfaces = new IndexHashSet<>();
+        this.inners = new IndexHashSet<>();
+
+        members = new IndexHashSet<>();
+        postLoad = new ArrayList<>();
+        resolved = true;
+    }
+
     /**
      * Creates a class context initializing as a public top-level class. This will initially mark this class as not
      * resolved.
@@ -322,6 +397,9 @@ public class ClassContext
     private ClassContext(String name)
     {
         ensureClassNameFormat(name);
+        if (name.startsWith("["))
+            array = true;
+
         CLASS_CONTEXT_MAP.put(name, this);
 
         this.modifiers = Modifier.PUBLIC;
@@ -332,8 +410,7 @@ public class ClassContext
         this.inners = new IndexHashSet<>();
 
         members = new IndexHashSet<>();
-
-        postLoad = new IndexHashSet<>();
+        postLoad = new ArrayList<>();
     }
 
     /**
@@ -430,6 +507,13 @@ public class ClassContext
     public AccessModifier getAccessModifier()
     {
         return AccessModifier.getAccessModifier(getModifiers());
+    }
+
+    public ClassContext getArrayComponent()
+    {
+        if (!array)
+            throw new IllegalArgumentException("Not an array class context");
+        return arrayComponent;
     }
 
     public String getName()
@@ -636,15 +720,120 @@ public class ClassContext
     }
 
     /**
-     * Finds the corresponding method from its name and type signature. If this is not found, it will return null.
+     * Finds the corresponding method from its name and type signature. If this is not found, depending on the
+     * <tt>recurse</tt> parameter, this will check it's superinterfaces and superclasses. If it is still not found,
+     * it will return null.
      * @param name the name of the method.
      * @param signature the signature of the method.
+     * @param recurse true to recurse inherited members.
      * @return a valid method context if found.
      * @throws IllegalArgumentException if an invalid name/signature is given.
      */
-    public MethodContext findMethod(String name, TypeSignature signature)
+    public MethodContext findMethod(String name, TypeSignature signature, boolean recurse)
     {
-        return members.search(new MethodContext(this, 0, name, signature));
+        MethodContext found = members.search(new MethodContext(this, 0, name, signature));
+        if (recurse && found == null)
+        {
+            List<MethodContext> candidates = new LinkedList<>();
+            found = findMethodRecurse(name, signature, candidates, new HashSet<>());
+            if (found == null)
+            {
+                ArrayList<MethodContext> defaults = new ArrayList<>();
+                MethodContext abstractMth = null;
+                Iterator<MethodContext> itr = candidates.iterator();
+                while (itr.hasNext() && abstractMth == null)
+                {
+                    MethodContext mth = itr.next();
+                    if ((mth.getModifiers() & (PUBLIC | ABSTRACT | STATIC)) == PUBLIC)
+                        defaults.add(mth);
+                    else
+                        abstractMth = mth;
+                }
+
+                if (defaults.isEmpty())
+                    return abstractMth;
+                else if (defaults.size() == 1)
+                    return defaults.get(0);
+                else
+                {
+                    for (int i = defaults.size() - 1; i >= 0; i--)
+                    {
+                        MethodContext mthA = defaults.get(i);
+                        if (mthA == null)
+                            continue;
+                        ClassContext itrfA = mthA.getOwner();
+                        for (int j = i - 1; j >= 0; j--)
+                        {
+                            MethodContext mthB = defaults.get(j);
+                            if (mthB == null)
+                                continue;
+                            ClassContext itrfB = mthB.getOwner();
+                            if (itrfA.isAssignableFrom(itrfB)) //B overrides A.
+                                defaults.set(i, null);
+                            else if (itrfB.isAssignableFrom(itrfA)) //A overrides B.
+                                defaults.set(j, null);
+                        }
+                    }
+
+                    for (MethodContext mth : defaults)
+                    {
+                        if (mth != null)
+                            return mth;
+                    }
+                }
+            }
+        }
+        return found;
+    }
+
+    /**
+     * Recursively finds the most concrete, direct method with this particular signature and name. This will return
+     * the method if a direct superclass has the method. Otherwise, any possible interface candidates will be in the
+     * specified set.
+     *
+     * @param name name of method.
+     * @param signature name of signature.
+     * @param candidates the list of interface candidates.
+     * @param visited the set of visited classes/interfaces.
+     * @return the found method context if this was found on a class.
+     */
+    private MethodContext findMethodRecurse(String name, TypeSignature signature, List<MethodContext> candidates,
+                                      HashSet<ClassContext> visited)
+    {
+        if (visited.contains(this))
+            return null;
+        visited.add(this);
+
+        MethodContext found = members.search(new MethodContext(this, 0, name, signature));
+        if (found != null)
+        {
+            if (isInterface())
+            {
+                int mods = found.getModifiers() & (PUBLIC | ABSTRACT | STATIC);
+                if (mods == PUBLIC) //default members
+                    candidates.add(0, found);
+                else if (mods == (PUBLIC | ABSTRACT)) //abstract methods
+                    candidates.add(found);
+            }
+            else //Always return if we find a method in our class.
+                return found;
+        }
+
+        ClassContext superCtx = superClass;
+        if (superCtx != null)
+        {
+            found = superCtx.findMethodRecurse(name, signature, candidates, visited);
+            if (found != null)
+                return found;
+        }
+
+        for (ClassContext itrf : interfaces)
+        {
+            found = itrf.findMethodRecurse(name, signature, candidates, visited);
+            if (found != null)
+                return found;
+        }
+        return null;
     }
 
     /**
@@ -739,14 +928,29 @@ public class ClassContext
     }
 
     /**
-     * Finds the corresponding field from its name. If this is not found, it will return null.
+     * Finds the corresponding field from its name. If this is not found, it will recurse to the superclasses +
+     * superinterfaces. If not found, it will return null.
      * @param name the name of the field
      * @return a valid field context if found.
      * @throws IllegalArgumentException if an invalid name is given.
      */
     public FieldContext findField(String name)
     {
-        return members.search(new FieldContext(this, 0, name, TypeSignature.BOOLEAN_TYPE));
+        FieldContext found = members.search(new FieldContext(this, 0, name, BOOLEAN_TYPE));
+        if (found == null)
+        {
+            for (ClassContext ctx : interfaces)
+            {
+                found = ctx.findField(name);
+                if (found != null)
+                    return found;
+            }
+
+            ClassContext superCtx = superClass;
+            if (superCtx != null && superCtx != this)
+                found = superCtx.findField(name);
+        }
+        return found;
     }
 
     /**
@@ -833,9 +1037,26 @@ public class ClassContext
         return classChain.toArray(new ClassContext[0]);
     }
 
+    public boolean isArray()
+    {
+        return array;
+    }
+
     public boolean isInterface()
     {
         return Modifier.isInterface(modifiers);
+    }
+
+    public boolean isPrimitive()
+    {
+        return primSort != null;
+    }
+
+    public TypeSort getPrimitiveType()
+    {
+        if (primSort == null)
+            throw new IllegalStateException("Not a primitive type.");
+        return primSort;
     }
 
     /**
@@ -1014,22 +1235,14 @@ public class ClassContext
     public boolean checkAccessMember(MemberContext member)
     {
         ClassContext other = member.getOwner();
-
-        ClassContext[] thisChain = getOuterClassChain();
-        ClassContext thisTop = thisChain[thisChain.length - 1];
-        ClassContext[] otherChain = other.getOuterClassChain();
-        ClassContext otherTop = otherChain[otherChain.length - 1];
-
-        if (thisTop.equals(otherTop))
+        if (other.equals(this))
             return true;
 
-        if (!checkAccessClass(other))
-            return false;
-
         AccessModifier access = member.getAccessModifier();
-        return AccessModifier.PUBLIC == access ||
-                AccessModifier.PACKAGE_PRIVATE.implies(access) && checkPackageAccess(other) ||
-                AccessModifier.PROTECTED.implies(access) && checkProtectedAccess(other);
+        return !access.equals(AccessModifier.PRIVATE) && (AccessModifier.PUBLIC == access ||
+                        AccessModifier.PACKAGE_PRIVATE.implies(access) && checkPackageAccess(other) ||
+                        AccessModifier.PROTECTED.implies(access) && checkProtectedAccess(other));
+
     }
 
     /**
@@ -1057,6 +1270,9 @@ public class ClassContext
      */
     public boolean checkPackageAccess(ClassContext other)
     {
+        if (other.array || array)
+            return false;
+
         int thisPathInd = name.lastIndexOf('/');
         int otherPathInd = other.name.lastIndexOf('/');
         return thisPathInd == otherPathInd && name.substring(0, thisPathInd).equals(other.name.substring(0,

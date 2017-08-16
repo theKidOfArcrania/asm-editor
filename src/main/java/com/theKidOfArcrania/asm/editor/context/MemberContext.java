@@ -83,6 +83,12 @@ public abstract class MemberContext
     }
 
     @Override
+    public String toString()
+    {
+        return getOwner() + "." + getName() + getSignature();
+    }
+
+    @Override
     public boolean equals(Object o)
     {
         if (this == o) return true;

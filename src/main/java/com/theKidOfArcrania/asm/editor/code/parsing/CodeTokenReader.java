@@ -10,6 +10,8 @@ import java.util.regex.Pattern;
 
 import static com.theKidOfArcrania.asm.editor.code.parsing.Range.characterRange;
 import static com.theKidOfArcrania.asm.editor.code.parsing.Range.tokenRange;
+import static java.lang.Character.isDigit;
+import static java.lang.Character.isJavaIdentifierStart;
 
 /**
  * Reads in token words for each line of code. This splits an existing body of code into lines, and it parses each
@@ -439,15 +441,15 @@ public class CodeTokenReader
             parseStringToken();
             return true;
         }
-        else if (Character.isDigit(ch) || ch == '.' || ch == '+' || ch == '-')
+        else if (isDigit(ch) || ch == '.' || ch == '+' || ch == '-')
         {
             parseNumber();
             return true;
         }
-        else if (Character.isJavaIdentifierStart(ch) || ch == '<')
+        else if (isJavaIdentifierStart(ch) || ch == '<' || ch == '[')
         {
             tokenType = TokenType.IDENTIFIER;
-            parseToken("/>");
+            parseToken("[/>;");
             if (token.contains(":"))
             {
                 tokenVal = token.substring(0, token.length() - 1);
@@ -538,7 +540,7 @@ public class CodeTokenReader
         for (int i = 0; i < token.length(); i++)
         {
             char ch = token.charAt(i);
-            if (i == 0 ? !Character.isJavaIdentifierStart(ch) : !Character.isJavaIdentifierPart(ch))
+            if (i == 0 ? !isJavaIdentifierStart(ch) : !Character.isJavaIdentifierPart(ch))
             {
                 error("Illegal character.", characterRange(lineNum, tokenStartIndex + i));
                 tokenError = true;

@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 import static com.theKidOfArcrania.asm.editor.context.ClassContext.getInternalName;
 import static com.theKidOfArcrania.asm.editor.context.TypeSignature.parseTypeSig;
 import static java.lang.String.join;
+import static java.time.Duration.ofMillis;
 import static java.util.stream.Collectors.joining;
 import static javafx.stage.Screen.getScreensForRectangle;
 import static org.fxmisc.richtext.MouseOverTextEvent.MOUSE_OVER_TEXT_BEGIN;
@@ -273,7 +274,8 @@ public class MethodEditor extends StackPane
         return list;
     }
 
-    public static final Duration PARSE_DELAY = Duration.ofMillis(300);
+    private static final Duration PARSE_DELAY = ofMillis(300);
+    private static final int MOVE_TOOLTIP_RANGE = 10;
 
     private final List<Tag> highlightTags;
     private final List<Syntax> highlightSyntaxes;
@@ -284,6 +286,8 @@ public class MethodEditor extends StackPane
     private final CodeArea codeArea;
     private final Tooltip tagMsg;
     private final ExecutorService executor;
+
+    private int moveCount = 10;
 
     /**
      * Constructs a new method editor object.
@@ -348,7 +352,7 @@ public class MethodEditor extends StackPane
                 .subscribe(LineStyles::applyStyles);
         codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea)); //TODO: line number factory + tag id.
 
-        codeArea.setMouseOverTextDelay(Duration.ofMillis(200));
+        codeArea.setMouseOverTextDelay(ofMillis(200));
         codeArea.addEventHandler(MOUSE_OVER_TEXT_BEGIN, e -> {
             int chIdx = e.getCharacterIndex();
             Point2D pos = e.getScreenPosition();
@@ -359,7 +363,16 @@ public class MethodEditor extends StackPane
             showTagMsgs(pos, lineNum, colNum);
         });
 
-        codeArea.addEventHandler(MouseEvent.MOUSE_MOVED, e -> tagMsg.hide());
+        codeArea.addEventHandler(MouseEvent.MOUSE_MOVED, e -> {
+            if (moveCount == -1)
+                return;
+            moveCount++;
+            if (moveCount >= MOVE_TOOLTIP_RANGE)
+            {
+                tagMsg.hide();
+                moveCount = -1;
+            }
+        });
 
 
         VirtualizedScrollPane<CodeArea> scroll = new VirtualizedScrollPane<>(codeArea);
@@ -387,7 +400,7 @@ public class MethodEditor extends StackPane
         if (!lines.isEmpty())
         {
             double xPos = pos.getX();
-            double yPos = pos.getY();
+            double yPos = pos.getY() + 5;
             Rectangle2D bounds = getScreensForRectangle(xPos, yPos, 0, 0).get(0).getVisualBounds();
 
             tagMsg.setText(join("\n", lines));
@@ -395,6 +408,7 @@ public class MethodEditor extends StackPane
 
             xPos -= tagMsg.prefWidth(-1) / 2;
             tagMsg.show(codeArea, xPos, yPos);
+            moveCount = 0;
         }
     }
 

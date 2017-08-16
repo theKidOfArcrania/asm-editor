@@ -8,18 +8,18 @@
     -fx-background-color: white;
 }
 
-.tag-error
-{
-    -rtfx-underline-color: red;
-    -rtfx-underline-width: 1;
-    -fx-fill: red;
-}
-
 .tag-warning
 {
     -rtfx-underline-color: yellow;
     -rtfx-underline-width: 1;
     -fx-fill: yellow;
+}
+
+.tag-error
+{
+    -rtfx-underline-color: red;
+    -rtfx-underline-width: 1;
+    -fx-fill: red;
 }
 
 .syntax-comment

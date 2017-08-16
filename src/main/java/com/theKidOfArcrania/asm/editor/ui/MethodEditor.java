@@ -10,8 +10,12 @@ import com.theKidOfArcrania.asm.editor.util.RangeSet;
 import javafx.application.Application;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
+import javafx.geometry.Point2D;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Tooltip;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.fxmisc.flowless.VirtualizedScrollPane;
@@ -29,7 +33,10 @@ import java.util.stream.Collectors;
 
 import static com.theKidOfArcrania.asm.editor.context.ClassContext.getInternalName;
 import static com.theKidOfArcrania.asm.editor.context.TypeSignature.parseTypeSig;
+import static java.lang.String.join;
 import static java.util.stream.Collectors.joining;
+import static javafx.stage.Screen.getScreensForRectangle;
+import static org.fxmisc.richtext.MouseOverTextEvent.MOUSE_OVER_TEXT_BEGIN;
 
 /**
  * This class represents the user interface for the user to modify a method's code contents.
@@ -57,6 +64,7 @@ public class MethodEditor extends StackPane
             MethodEditor editor = new MethodEditor(null, mthContext, code);
             StackPane root = new StackPane(editor);
             StackPane.setMargin(editor, new Insets(10));
+            root.getStyleClass().add("main-dialog");
 
             Scene scene = new Scene(root, WIDTH, HEIGHT);
             scene.getStylesheets().add("com/theKidOfArcrania/asm/editor/ui/style.css");
@@ -121,6 +129,26 @@ public class MethodEditor extends StackPane
                 to = guard;
             if (line.markers.add(from, to, style))
                 line.modified = true;
+        }
+
+        /**
+         * Obtains a list of all line markers at a position
+         * @param lineNum the line number
+         * @param colNum the column number or -1 if to obtain all highlight markers.
+         * @return the set of markers.
+         */
+        public Set<HighlightMark<?>> getMarkersAt(int lineNum, int colNum)
+        {
+            if (lineNum > lines.size() || lineNum <= 0)
+                return new HashSet<>();
+            if (colNum == -1)
+            {
+                HashSet<HighlightMark<?>> markers = new HashSet<>();
+                for (RangeSet<HighlightMark<?>>.RangeElement e : lines.get(lineNum - 1).markers)
+                    markers.addAll(e.getItems());
+                return markers;
+            }
+            return lines.get(lineNum - 1).markers.get(colNum);
         }
 
         /**
@@ -203,7 +231,7 @@ public class MethodEditor extends StackPane
                                         ((Tag) mark).getTagDescription() + ")" : ""))
                                 .collect(joining(", ", prefix, "]"));
                     }).collect(joining(", ", "[", "]"));
-                    System.out.println(i + 1 + " (+ " + off + "): " + tags);
+                    //System.out.println(i + 1 + " (+ " + off + "): " + tags);
                     for (RangeSet<HighlightMark<?>>.RangeElement ele : markers)
                     {
                         if (last < ele.getFrom())
@@ -254,6 +282,7 @@ public class MethodEditor extends StackPane
     private final ArrayList<Integer> linePos;
     private final CodeParser parser;
     private final CodeArea codeArea;
+    private final Tooltip tagMsg;
     private final ExecutorService executor;
 
     /**
@@ -265,6 +294,7 @@ public class MethodEditor extends StackPane
     public MethodEditor(CodeSymbols global, MethodContext mth, String code)
     {
         getStylesheets().add("com/theKidOfArcrania/asm/editor/ui/syntax-def.css");
+        getStyleClass().add("method-editor");
 
         highlightSyntaxes = new ArrayList<>();
         highlightTags = new ArrayList<>();
@@ -295,6 +325,10 @@ public class MethodEditor extends StackPane
         linePos.add(0);
         styles.insertLine(1);
 
+        tagMsg = new Tooltip();
+        tagMsg.setWrapText(true);
+        //tagMsg.getStyleClass().add("tag-label");
+
         codeArea = new CodeArea();
         codeArea.plainTextChanges()
                 .filter(ch -> !ch.getInserted().equals(ch.getRemoved()))
@@ -312,7 +346,21 @@ public class MethodEditor extends StackPane
                     }
                 })
                 .subscribe(LineStyles::applyStyles);
-        codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
+        codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea)); //TODO: line number factory + tag id.
+
+        codeArea.setMouseOverTextDelay(Duration.ofMillis(200));
+        codeArea.addEventHandler(MOUSE_OVER_TEXT_BEGIN, e -> {
+            int chIdx = e.getCharacterIndex();
+            Point2D pos = e.getScreenPosition();
+
+            int lineNum = searchLine(chIdx);
+            int colNum = chIdx - linePos.get(lineNum - 1);
+
+            showTagMsgs(pos, lineNum, colNum);
+        });
+
+        codeArea.addEventHandler(MouseEvent.MOUSE_MOVED, e -> tagMsg.hide());
+
 
         VirtualizedScrollPane<CodeArea> scroll = new VirtualizedScrollPane<>(codeArea);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
@@ -320,6 +368,34 @@ public class MethodEditor extends StackPane
         getChildren().addAll(scroll);
 
         codeArea.insertText(0, code);
+    }
+
+    /**
+     * Shows all the tag messages at a particular location.
+     * @param pos position of the cursor.
+     * @param lineNum the line number corresponding to cursor
+     * @param colNum the column number corresponding to cursor, or -1 if at beginning of line.
+     */
+    private void showTagMsgs(Point2D pos, int lineNum, int colNum)
+    {
+        ArrayList<String> lines = new ArrayList<>();
+        for (HighlightMark<?> mark : styles.getMarkersAt(lineNum, colNum))
+        {
+            if (mark instanceof Tag)
+                lines.add(((Tag) mark).getTagDescription());
+        }
+        if (!lines.isEmpty())
+        {
+            double xPos = pos.getX();
+            double yPos = pos.getY();
+            Rectangle2D bounds = getScreensForRectangle(xPos, yPos, 0, 0).get(0).getVisualBounds();
+
+            tagMsg.setText(join("\n", lines));
+            tagMsg.setMaxWidth(bounds.getWidth());
+
+            xPos -= tagMsg.prefWidth(-1) / 2;
+            tagMsg.show(codeArea, xPos, yPos);
+        }
     }
 
     /**

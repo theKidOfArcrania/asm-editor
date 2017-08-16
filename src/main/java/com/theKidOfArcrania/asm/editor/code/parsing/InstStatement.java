@@ -37,7 +37,7 @@ public class InstStatement extends CodeStatement
             return null;
 
         int end = reader.getTokenEndIndex();
-        if (reader.nextToken(true))
+        if (reader.nextToken(false))
         {
             Position start = reader.getTokenPos().getStart();
             reader.error("Expected end of statement.", tokenRange(start.getLineNumber(), end,

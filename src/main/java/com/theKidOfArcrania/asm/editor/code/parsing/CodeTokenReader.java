@@ -371,9 +371,10 @@ public class CodeTokenReader
     public boolean nextToken(boolean allowComma)
     {
         readNextToken();
-        if (!allowComma && tokenStartIndex != -1 && hasArgumentSeparator && !argumentError)
+        if (!allowComma && hasArgumentSeparator && !argumentError)
         {
-            int comma = tokenStartIndex - 1;
+            int comma = tokenStartIndex == -1 ? (commentStartInd == -1 ? line.length() - 1 : commentStartInd)
+                    : tokenStartIndex;
             while (line.charAt(comma) != ',')
                 comma--;
             error("Unexpected comma.", characterRange(lineNum, comma));

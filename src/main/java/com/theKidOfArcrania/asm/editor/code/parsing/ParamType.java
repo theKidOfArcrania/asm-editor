@@ -37,12 +37,7 @@ public interface ParamType
      */
     default boolean checkToken(CodeTokenReader reader)
     {
-        if (reader.getTokenValue() == null)
-        {
-            reader.errorExpected(getName());
-            return false;
-        }
-        return true;
+        return reader.getTokenValue() != null;
     }
 
     /**

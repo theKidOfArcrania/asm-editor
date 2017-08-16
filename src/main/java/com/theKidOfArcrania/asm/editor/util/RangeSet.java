@@ -132,6 +132,23 @@ public class RangeSet<T> implements Iterable<RangeSet<T>.RangeElement>
     }
 
     /**
+     * Obtains all items at a specified position.
+     * @param pos the position to look at
+     * @return the set of items if any.
+     */
+    public Set<T> get(int pos)
+    {
+        int ind = binarySearch(pos);
+        if (ind == -1)
+            return new HashSet<>();
+        else
+        {
+            RangeElement ele = eles.get(ind);
+            return ele.to >= pos ? new HashSet<>(ele.items) : new HashSet<>();
+        }
+    }
+
+    /**
      * Removes all elements that meet a specified condition
      * @param test condition by which to remove elements.
      * @return true if the list has been changed as a result of this removal.

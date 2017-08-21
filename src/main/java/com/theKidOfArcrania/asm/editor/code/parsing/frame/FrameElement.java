@@ -2,7 +2,7 @@ package com.theKidOfArcrania.asm.editor.code.parsing.frame;
 
 
 import com.theKidOfArcrania.asm.editor.code.parsing.CodeSymbols;
-import com.theKidOfArcrania.asm.editor.code.parsing.InstStatement;
+import com.theKidOfArcrania.asm.editor.code.parsing.inst.InstStatement;
 import com.theKidOfArcrania.asm.editor.code.parsing.inst.InstOpcodes;
 import com.theKidOfArcrania.asm.editor.context.ClassContext;
 import com.theKidOfArcrania.asm.editor.context.TypeSignature;
@@ -14,6 +14,7 @@ import java.util.ArrayList;
 
 import static com.theKidOfArcrania.asm.editor.code.parsing.frame.FrameType.OBJECT;
 import static com.theKidOfArcrania.asm.editor.code.parsing.frame.FrameType.UNINITIALIZED;
+import static com.theKidOfArcrania.asm.editor.context.TypeSignature.parseTypeSig;
 
 /**
  * Represents a single frame element.
@@ -69,7 +70,7 @@ public class FrameElement
             if (type == UNINITIALIZED)
                 eles.add(new FrameElement(type, name));
             else
-                eles.add(new FrameElement(type, TypeSignature.parseTypeSig(name)));
+                eles.add(new FrameElement(type, parseTypeSig(name)));
             i--;
         }
         return eles.toArray(new FrameElement[0]);

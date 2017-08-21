@@ -1,8 +1,5 @@
 package com.theKidOfArcrania.asm.editor.code.parsing;
 
-import com.theKidOfArcrania.asm.editor.context.TypeSignature;
-import com.theKidOfArcrania.asm.editor.context.TypeSort;
-
 import static com.theKidOfArcrania.asm.editor.code.parsing.Range.*;
 import static com.theKidOfArcrania.asm.editor.context.ClassContext.verifyClassNameFormat;
 import static com.theKidOfArcrania.asm.editor.context.TypeSignature.parseTypeSig;
@@ -19,13 +16,8 @@ public enum BasicParamType implements ParamType
     LONG("long integer number", TokenType.LONG),
     FLOAT("floating number", TokenType.FLOAT),
     DOUBLE("double-precision floating number", TokenType.DOUBLE),
-    STRING("string", TokenType.STRING){
-        @Override
-        public boolean checkToken(CodeTokenReader reader)
-        {
-            return reader.getTokenValue() != null;
-        }
-    }, METHOD_SIGNATURE("method signature", TokenType.TYPE_SIGNATURE) {
+    STRING("string", TokenType.STRING),
+    METHOD_SIGNATURE("method signature", TokenType.TYPE_SIGNATURE) {
         @Override
         public boolean matches(CodeTokenReader reader)
         {
@@ -35,7 +27,7 @@ public enum BasicParamType implements ParamType
         @Override
         public boolean checkToken(CodeTokenReader reader)
         {
-            return super.matches(reader) && validTypeSig(reader, true);
+            return validTypeSig(reader);
         }
     }, FIELD_SIGNATURE("type signature", TokenType.TYPE_SIGNATURE) {
         @Override
@@ -47,7 +39,7 @@ public enum BasicParamType implements ParamType
         @Override
         public boolean checkToken(CodeTokenReader reader)
         {
-            return super.matches(reader) && validTypeSig(reader, false);
+            return validTypeSig(reader);
         }
     }, ARRAY_SIGNATURE("array descriptor", TokenType.TYPE_SIGNATURE) {
         @Override
@@ -59,23 +51,7 @@ public enum BasicParamType implements ParamType
         @Override
         public boolean checkToken(CodeTokenReader reader)
         {
-            if (!super.matches(reader))
-                return false;
-
-            String token = (String)reader.getTokenValue();
-            TypeSignature sig = parseTypeSig(token);
-            if (sig == null)
-            {
-                reader.error("Cannot resolve type signature '" + token + "'.", reader.getTokenPos());
-                return false;
-            }
-
-            if (sig.getSort() != TypeSort.ARRAY)
-            {
-                reader.errorExpected(getName());
-                return false;
-            }
-            return true;
+            return validTypeSig(reader);
         }
     }, CLASS_NAME("class identifier", TokenType.IDENTIFIER) {
         @Override
@@ -132,15 +108,14 @@ public enum BasicParamType implements ParamType
             }
             return true;
         }
-    };
+    }, FRAME_ELEMENTS("frame elements", TokenType.FRAME_ELEMENTS);
 
     /**
      * Determines whether if this token contains a valid signature (method or field).
      * @param reader the token-reader
-     * @param methodType whether to expect a method or field signature.
      * @return true if valid, false if invalid
      */
-    private static boolean validTypeSig(CodeTokenReader reader, boolean methodType)
+    private static boolean validTypeSig(CodeTokenReader reader)
     {
         String token = (String)reader.getTokenValue();
         if (parseTypeSig(token) == null)
@@ -149,14 +124,7 @@ public enum BasicParamType implements ParamType
             return false;
         }
 
-        boolean methodSig = token.contains("(");
-        if (methodType && !methodSig)
-            reader.errorExpected("method signature");
-        else if (!methodType && methodSig)
-            reader.errorExpected("type signature");
-        else
-            return true;
-        return false;
+        return true;
     }
 
     private final String name;

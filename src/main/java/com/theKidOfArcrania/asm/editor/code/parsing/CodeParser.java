@@ -1,7 +1,9 @@
 package com.theKidOfArcrania.asm.editor.code.parsing;
 
 import com.theKidOfArcrania.asm.editor.code.highlight.*;
+import com.theKidOfArcrania.asm.editor.code.parsing.directive.DirStatement;
 import com.theKidOfArcrania.asm.editor.code.parsing.inst.InstOpcodes;
+import com.theKidOfArcrania.asm.editor.code.parsing.inst.InstStatement;
 import com.theKidOfArcrania.asm.editor.context.MethodContext;
 
 import java.util.ArrayList;
@@ -254,6 +256,15 @@ public class CodeParser
     }
 
     /**
+     * Verifies that the stack is not misused in code, and also that the required stack frames are placed in jumps.
+     * This should ONLY be called when all statements are properly resolved.
+     */
+    public void verifyStack()
+    {
+
+    }
+
+    /**
      * Parse the currently selected line in the reader.
      * @throws IllegalStateException if this token reader isn't currently on a line.
      * @return true the parsing line was successful, false if an error occurred.
@@ -351,13 +362,5 @@ public class CodeParser
         int commentStart = reader.getCommentStartIndex();
         if (commentStart != -1)
             highlighter.insertSyntax(new Syntax(SyntaxType.COMMENT,  tokenRange(reader.getLineNumber(), commentStart, len)));
-    }
-
-    /**
-     * Verifies that the stack is not misused in code, and also that the required stack frames are placed in jumps.
-     */
-    private void verifyStack()
-    {
-
     }
 }

@@ -7,6 +7,8 @@ package com.theKidOfArcrania.asm.editor.code.parsing;
 public class MultipleParamType implements ParamType
 {
 
+    private static final long serialVersionUID = 2160695679715361510L;
+
     private ParamType types[];
 
     /**

@@ -31,28 +31,10 @@ public abstract class InstSpec
      */
     public Argument[] parseInstArgs(CodeTokenReader reader)
     {
-        boolean error = false;
-        Argument[] args = new Argument[params.length];
-        for (int i = 0; i < params.length; i++)
-        {
-            if (!reader.nextArgument())
-            {
-                reader.errorExpected(params[i].getName());
-                return null;
-            }
-            if (!params[i].matches(reader))
-            {
-                reader.errorExpected(params[i].getName());
-                error = true;
-            }
-            else if (params[i].checkToken(reader))
-                args[i] = new Argument(reader, params[i]);
-            else
-                error = true;
-        }
-
-        return error ? null : args;
+        return reader.parseArguments(params);
     }
+
+
 
     /**
      * Verifies that this instruction is valid. This will emit any errors to the token reader if necessary.  This is

@@ -10,8 +10,10 @@ import java.util.regex.Pattern;
 
 import static com.theKidOfArcrania.asm.editor.code.parsing.Range.characterRange;
 import static com.theKidOfArcrania.asm.editor.code.parsing.Range.tokenRange;
-import static java.lang.Character.isDigit;
+import static com.theKidOfArcrania.asm.editor.code.parsing.frame.FrameElement.parseFrameDesc;
+import static com.theKidOfArcrania.asm.editor.util.FallibleFunction.tryOptional;
 import static java.lang.Character.isJavaIdentifierStart;
+import static java.lang.Character.isWhitespace;
 
 /**
  * Reads in token words for each line of code. This splits an existing body of code into lines, and it parses each
@@ -33,7 +35,6 @@ public class CodeTokenReader
     private static final Pattern NEW_LINE = Pattern.compile("\r?\n");
 
     private static final int HEX_RADIX = 16;
-    private static final char COMMENT = '#';
 
     private final CodeSymbols resolved;
 
@@ -60,6 +61,7 @@ public class CodeTokenReader
 
     private final ArrayList<ErrorLogger> errLogs;
 
+    private final ErrorLogger delegateLogger;
 
     /**
      * Constructs a CodeTokenReader reading from the specified code body.
@@ -80,6 +82,21 @@ public class CodeTokenReader
 
         prevTokens = new ArrayList<>();
         resetLine();
+
+        this.delegateLogger = new ErrorLogger()
+        {
+            @Override
+            public void logError(String description, Range highlight)
+            {
+                error(description, highlight);
+            }
+
+            @Override
+            public void logWarning(String description, Range highlight)
+            {
+                warning(description, highlight);
+            }
+        };
     }
 
     /**
@@ -247,6 +264,18 @@ public class CodeTokenReader
         }
     }
 
+    /**
+     * Obtains the delegate logger for this error logger. This is done whenever a program wants allow a
+     * subsection to be able to log errors but not access the code token reader. This wraps the reader around a thin
+     * opaque interface only capable of logging errors. This may not return new instances each time. In fact, this
+     * error logger delegate will be reused each time, since this error logger is immutable.
+     * @return the delegate error logger.
+     */
+    public ErrorLogger getDelegateLogger()
+    {
+        return delegateLogger;
+    }
+
     public int getLineNumber()
     {
         return lineNum;
@@ -383,6 +412,36 @@ public class CodeTokenReader
     }
 
     /**
+     * Bulk parses a series number of arguments with the specified parameter types.
+     * @param params the parameters to parse
+     * @return the parsed arguments.
+     */
+    public Argument[] parseArguments(ParamType... params)
+    {
+        boolean error = false;
+        Argument[] args = new Argument[params.length];
+        for (int i = 0; i < params.length; i++)
+        {
+            if (!nextArgument())
+            {
+                errorExpected(params[i].getName());
+                return null;
+            }
+            if (!params[i].matches(this))
+            {
+                errorExpected(params[i].getName());
+                error = true;
+            }
+            else if (params[i].checkToken(this))
+                args[i] = new Argument(this, params[i]);
+            else
+                error = true;
+        }
+
+        return error ? null : args;
+    }
+
+    /**
      * Moves to the next token on this current line. If there are no more tokens on this line, we will return
      * <code>false</code>. Unlike {@link #nextToken()}, this will also search for a preceding comma separator (if
      * this is not the first argument). If one does not exist, it will log an error. This will still return
@@ -437,17 +496,7 @@ public class CodeTokenReader
     private boolean identifyTokenStart()
     {
         char ch = line.charAt(colNum);
-        if (ch == '"')
-        {
-            parseStringToken();
-            return true;
-        }
-        else if (isDigit(ch) || ch == '.' || ch == '+' || ch == '-')
-        {
-            parseNumber();
-            return true;
-        }
-        else if (isJavaIdentifierStart(ch) || ch == '<' || ch == '[')
+        if (isJavaIdentifierStart(ch) || ch == '<' || ch == '[')
         {
             tokenType = TokenType.IDENTIFIER;
             parseToken("[/>;");
@@ -460,45 +509,62 @@ public class CodeTokenReader
                 tokenVal = token;
             return true;
         }
-        else if (ch == '@') //TypeSignature
+
+        switch(ch)
         {
-            tokenType = TokenType.TYPE_SIGNATURE;
-            parseToken("[/;()");
-            tokenVal = token.substring(1);
-            return true;
-        }
-        else if (ch == '&') //MethodHandle
-        {
-            tokenType = TokenType.HANDLE;
-            parseToken("");
-            tokenVal = token.substring(1);
-            return true;
-        }
-        else if (ch == COMMENT) //Comment
-        {
-            tokenStartIndex = -1;
-            tokenEndIndex = -1;
-            commentStartInd = colNum;
-            return true;
-        }
-        else if (ch == ',')
-        {
-            if (hasArgumentSeparator)
-            {
-                error("Unexpected comma.", characterRange(lineNum, colNum));
-                argumentError = true;
-            }
-            hasArgumentSeparator = true;
-            return false;
-        }
-        else
-        {
-            if (!Character.isWhitespace(ch))
-            {
-                error("Illegal character.", characterRange(lineNum, colNum));
-                tokenError = true;
-            }
-            return false;
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+            case '.':
+            case '+':
+            case '-':
+                parseNumber();
+                return true;
+            case '"':
+                parseStringToken();
+                return true;
+            case '@':
+                tokenType = TokenType.TYPE_SIGNATURE;
+                parseToken("[/;()");
+                tokenVal = token.substring(1);
+                return true;
+            case '&':
+                tokenType = TokenType.HANDLE;
+                parseToken("");
+                tokenVal = token.substring(1);
+                return true;
+            case '*':
+                tokenType = TokenType.FRAME_ELEMENTS;
+                parseToken("[/;");
+                tokenVal = parseFrameDesc(token.substring(1));
+                return true;
+            case '#':
+                tokenStartIndex = -1;
+                tokenEndIndex = -1;
+                commentStartInd = colNum;
+                return true;
+            case ',':
+                if (hasArgumentSeparator)
+                {
+                    error("Unexpected comma.", characterRange(lineNum, colNum));
+                    argumentError = true;
+                }
+                hasArgumentSeparator = true;
+                return false;
+            default:
+                if (!isWhitespace(ch))
+                {
+                    error("Illegal character.", characterRange(lineNum, colNum));
+                    tokenError = true;
+                }
+                return false;
         }
     }
 
@@ -580,9 +646,7 @@ public class CodeTokenReader
             tokenType = isLong ? TokenType.LONG : TokenType.INTEGER;
             parsing = isLong ? Long::decode : Integer::decode;
         }
-        tokenVal = FallibleFunction.tryOptional(parsing, str).orElse(null);
-        if (tokenVal == null)
-            error("Invalid number.", tokenRange(lineNum, tokenStartIndex, tokenEndIndex));
+        tokenVal = tryOptional(parsing, str).orElse(null);
     }
 
     /**
@@ -601,7 +665,7 @@ public class CodeTokenReader
         while (colNum < line.length())
         {
             char ch = line.charAt(colNum);
-            if (Character.isWhitespace(ch) || ch == COMMENT || ch == ',')
+            if (isWhitespace(ch) || ch == '#' || ch == ',')
                 break;
             else if (ch == ':' && tokenType == TokenType.IDENTIFIER)
             {

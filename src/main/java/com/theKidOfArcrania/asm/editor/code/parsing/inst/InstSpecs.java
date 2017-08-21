@@ -821,7 +821,7 @@ public class InstSpecs
                 String unresolved = typeSig.getUnresolvedClassSymbols();
                 if (unresolved != null)
                 {
-                    logger.logError("Cannot resolve symbol(s) " + unresolved + ".", inst.getArgPos(ind));
+                    logger.logError("Cannot resolve symbol(s): " + unresolved + ".", inst.getArgPos(ind));
                     return false;
                 }
         }

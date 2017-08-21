@@ -223,16 +223,6 @@ public class MethodEditor extends StackPane
                 {
                     int last = 0;
                     StyleSpansBuilder<Collection<String>> ssb = new StyleSpansBuilder<>();
-
-                    String tags = markers.stream().map(ele -> {
-                        String prefix = ele.getFrom() + "-" + ele.getTo() + ": [";
-                        return ele.getItems()
-                                .stream()
-                                .map(mark -> mark.getType() + (mark instanceof Tag ? " (" +
-                                        ((Tag) mark).getTagDescription() + ")" : ""))
-                                .collect(joining(", ", prefix, "]"));
-                    }).collect(joining(", ", "[", "]"));
-                    //System.out.println(i + 1 + " (+ " + off + "): " + tags);
                     for (RangeSet<HighlightMark<?>>.RangeElement ele : markers)
                     {
                         if (last < ele.getFrom())
@@ -416,7 +406,7 @@ public class MethodEditor extends StackPane
      * Computes all the changes that has been made to this editor and re-parses the appropriate lines. This will
      * queue the actual computation for a later time and will return this task's status.
      * @param changes the changes that has been made to the editor to be processed.
-     * @return a task describing all the l
+     * @return the pending computing task.
      */
     private Task<Void> computeChanges(List<PlainTextChange> changes)
     {

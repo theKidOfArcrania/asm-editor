@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import static com.theKidOfArcrania.asm.editor.context.ClassContext.findContext;
 import static com.theKidOfArcrania.asm.editor.context.TypeSort.*;
+import static java.util.stream.Collectors.joining;
 
 /**
  * Represents any type that can be expressed as an internal descriptor used to describe class types and field/method
@@ -379,7 +380,7 @@ public class TypeSignature
                 }
                 if (unresolved.isEmpty())
                     return null;
-                return unresolved.stream().map(str -> "'" + str + "'").collect(Collectors.joining(", "));
+                return unresolved.stream().map(str -> "'" + str + "'").collect(joining(", "));
             default:
                 return null;
         }

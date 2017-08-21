@@ -2,6 +2,7 @@ package com.theKidOfArcrania.asm.editor.test;
 
 import com.theKidOfArcrania.asm.editor.code.parsing.*;
 import com.theKidOfArcrania.asm.editor.code.parsing.inst.InstOpcodes;
+import com.theKidOfArcrania.asm.editor.code.parsing.inst.InstStatement;
 import com.theKidOfArcrania.asm.editor.context.ClassContext;
 import com.theKidOfArcrania.asm.editor.context.MethodContext;
 import com.theKidOfArcrania.asm.editor.context.TypeSignature;

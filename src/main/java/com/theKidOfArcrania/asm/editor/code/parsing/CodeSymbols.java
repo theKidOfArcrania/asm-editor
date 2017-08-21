@@ -1,5 +1,6 @@
 package com.theKidOfArcrania.asm.editor.code.parsing;
 
+import com.theKidOfArcrania.asm.editor.code.parsing.inst.InstStatement;
 import com.theKidOfArcrania.asm.editor.context.ClassContext;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;

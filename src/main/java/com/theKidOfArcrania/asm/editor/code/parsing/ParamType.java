@@ -1,11 +1,13 @@
 package com.theKidOfArcrania.asm.editor.code.parsing;
 
+import java.io.Serializable;
+
 /**
  * Represents a parameter type. Each parameter type represents a particular syntax/format that when parsed will
  * return a specific type of value represented as a token.
  * @author Henry Wang
  */
-public interface ParamType
+public interface ParamType extends Serializable
 {
     /**
      * Obtains the exact type of this token. By default, if this token matches up with this parameter type, it will
@@ -31,13 +33,19 @@ public interface ParamType
     boolean matches(CodeTokenReader reader);
 
     /**
-     * Checks whether the current token is a valid token. This will also emit the appropriate errors if needed.
+     * Checks whether the current token is a valid token. This is called after we already know that this will match
+     * the particular parameter type. This will also emit the appropriate errors if needed.
      * @param reader the token-reader
      * @return true if valid, false if invalid.
      */
     default boolean checkToken(CodeTokenReader reader)
     {
-        return reader.getTokenValue() != null;
+        if (reader.getTokenValue() == null)
+        {
+            reader.error("Invalid " + getExactType(reader) + ".", reader.getTokenPos());
+            return false;
+        }
+        return true;
     }
 
     /**

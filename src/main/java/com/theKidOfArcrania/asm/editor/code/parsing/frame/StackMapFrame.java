@@ -1,7 +1,7 @@
 package com.theKidOfArcrania.asm.editor.code.parsing.frame;
 
 import com.theKidOfArcrania.asm.editor.code.parsing.CodeSymbols;
-import com.theKidOfArcrania.asm.editor.code.parsing.InstStatement;
+import com.theKidOfArcrania.asm.editor.code.parsing.inst.InstStatement;
 import com.theKidOfArcrania.asm.editor.context.ClassContext;
 import com.theKidOfArcrania.asm.editor.context.MethodContext;
 import com.theKidOfArcrania.asm.editor.context.TypeSignature;
